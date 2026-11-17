@@ -237,6 +237,8 @@ body.chill #np{top:auto;bottom:calc(env(safe-area-inset-bottom) + 20px)}
   <div class="opts">
     <button class="opt" id="oFull" type="button">Şarkının tamamını Spotify oynatıcısında çal</button>
     <button class="opt pri" id="oSp" type="button">iPhone'da tam şarkı: Spotify'ı bağla</button>
+    <button class="opt" id="oWake" type="button" style="display:none">Spotify'ı uyandır (bir kez açıp geri dön)</button>
+    <button class="opt" id="oSpOff" type="button" style="display:none">Önizlemeyi uygulama içinde çal (30 sn)</button>
     <button class="opt" id="oFullMode" type="button">Şarkılar hep tam çalsın</button>
     <button class="opt" id="oAnn" type="button">Sahne anonsu</button>
     <a class="opt" href="https://accounts.spotify.com/tr/login" target="_blank" rel="noopener" style="text-decoration:none">Spotify hesabına giriş yap (tam şarkı için)</a>
@@ -915,6 +917,48 @@ function drawVideo(x,g,w,h,t,k,pal,ph){
   }
 }
 
+/* ===== SAHNE ARKASI: parmak izi + kapak mozaiği + şarkının çağı ===== */
+function songProgress(){ if(SP.on&&SP.dur) return Math.min(1,(SP.pos+(Music.playing?performance.now()-SP.posAt:0))/SP.dur); const a=Music.audio; return a.duration?a.currentTime/a.duration:0; }
+/* 1) her şarkıya özgü desen: şarkı kimliğinden üretilir, hep aynı kalır */
+function fingerprint(x,w,h,i,t,k,pal){
+  const id=T[i][0], s=n=>hash(id+n); const type=Math.floor(s('t')*6), dir=s('d')>.5?1:-1, sp=0.15+s('v')*0.5, n=6+Math.floor(s('n')*10), ph=Beat.phase;
+  x.save(); x.translate(w/2,h/2);
+  for(let j=0;j<n;j++){ const c=pal[j%pal.length], a=j/n*Math.PI*2+t*sp*dir, r=(30+j*14)*(1+k*0.12);
+    x.strokeStyle=c; x.fillStyle=c; x.globalAlpha=0.55; x.lineWidth=2+k*3;
+    if(type===0){ x.beginPath(); for(let q=0;q<40;q++){ const aa=a+q*0.15, rr=q*4; q?x.lineTo(Math.cos(aa)*rr,Math.sin(aa)*rr*0.6):x.moveTo(0,0);} x.stroke(); }
+    else if(type===1){ x.beginPath(); x.arc(0,0,r,a,a+Math.PI*(0.4+s('a'+j)*1.2)); x.stroke(); }
+    else if(type===2){ x.save(); x.rotate(a); x.beginPath(); x.moveTo(0,0); x.lineTo(r*2,-8-k*6); x.lineTo(r*2,8+k*6); x.closePath(); x.globalAlpha=0.3; x.fill(); x.restore(); }
+    else if(type===3){ x.beginPath(); for(let xx=-w/2;xx<w/2;xx+=6) x.lineTo(xx,(j-n/2)*12+Math.sin(xx*0.03+t*sp*4*dir+j)*12*(1+k)); x.stroke(); }
+    else if(type===4){ x.save(); x.rotate(a); x.beginPath(); x.ellipse(r*0.8,0,r*0.6,10+k*8,0,0,7); x.globalAlpha=0.35; x.fill(); x.restore(); }
+    else { const gx=((j*53)%w)-w/2, gy=((j*97)%h)-h/2; x.beginPath(); x.arc(gx+Math.cos(ph+j)*10,gy+Math.sin(ph*0.7+j)*10,6+k*10+s('r'+j)*10,0,7); x.fill(); }
+  }
+  x.restore(); x.globalAlpha=1;
+}
+/* 2) kapak mozaiği: başta dağınık, ilerledikçe birleşir, sonunda dağılır */
+function coverMosaic(x,w,h,i,p,k){
+  const im=Music.coverImg; const S=150, cx=24, cy=(h-S)/2, N=8, ts=S/N;
+  const sm=v=>v<0?0:v>1?1:v*v*(3-2*v);
+  const a = sm((p-0.02)/0.18) * (1-sm((p-0.88)/0.12));
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    const sd=hash(T[i][0]+r+'-'+c), ang=sd*Math.PI*2, dist=160+sd*120;
+    const hx=cx+c*ts, hy=cy+r*ts, sx=hx+Math.cos(ang)*dist, sy=hy+Math.sin(ang)*dist*0.6;
+    const px=sx+(hx-sx)*a+(Math.random()-.5)*k*4, py=sy+(hy-sy)*a+(Math.random()-.5)*k*4;
+    x.globalAlpha=0.35+0.65*a;
+    if(im) x.drawImage(im, c*im.naturalWidth/N, r*im.naturalHeight/N, im.naturalWidth/N, im.naturalHeight/N, px, py, ts+0.6, ts+0.6);
+    else { x.fillStyle=Music.feat.palette[(r+c)%3]; x.fillRect(px,py,ts-1,ts-1); }
+  }
+  x.globalAlpha=1;
+}
+/* 4) şarkının çağı: yıla göre görüntü dokusu */
+function eraOverlay(x,w,h,i,t,k){
+  const y=T[i][4]||2015;
+  if(y<1980){ x.fillStyle='rgba(255,170,80,0.12)'; x.fillRect(0,0,w,h); for(let q=0;q<160;q++){ x.fillStyle=`rgba(255,255,255,${Math.random()*0.12})`; x.fillRect(Math.random()*w,Math.random()*h,1.5,1.5);} if(Math.random()<0.15){ x.fillStyle='#ffffff22'; x.fillRect(Math.random()*w,0,1,h);} const g=x.createRadialGradient(w/2,h/2,h*0.3,w/2,h/2,h*0.9); g.addColorStop(0,'#0000'); g.addColorStop(1,'#000a'); x.fillStyle=g; x.fillRect(0,0,w,h); x.font='600 11px monospace'; x.fillStyle='#ffd7a0'; x.fillText(y+' · FİLM',w-90,h-10); }
+  else if(y<1990){ for(let yy=0;yy<h;yy+=3){ x.fillStyle='rgba(0,0,0,0.18)'; x.fillRect(0,yy,w,1);} const ty=(t*60)%h; x.fillStyle='rgba(255,255,255,0.08)'; x.fillRect(0,ty,w,6); x.globalCompositeOperation='lighter'; x.fillStyle='rgba(255,0,80,0.05)'; x.fillRect(2+k*3,0,w,h); x.globalCompositeOperation='source-over'; x.font='700 14px monospace'; x.fillStyle='#fff'; x.fillText('▶ PLAY  '+y,14,22); }
+  else if(y<2000){ x.fillStyle='#000c'; x.fillRect(0,h-26,w,26); x.fillStyle='#e30613'; x.fillRect(0,h-26,58,26); x.font='800 13px sans-serif'; x.fillStyle='#fff'; x.fillText('KLİP 90',6,h-8); const msg=T[i][2].split(',')[0]+' — '+T[i][1]+' · '+y+' · istek hattı açık  ·  '; x.save(); x.beginPath(); x.rect(60,h-26,w-60,26); x.clip(); x.font='600 13px sans-serif'; const mw=x.measureText(msg).width; const off=(t*50)%mw; x.fillText(msg+msg+msg,64-off,h-8); x.restore(); }
+  else if(y<2010){ x.font='900 26px sans-serif'; x.fillStyle='#ffffffcc'; x.fillText('M',w-38,32); if(k>0.8){ x.fillStyle='rgba(255,255,255,0.18)'; x.fillRect(0,0,w,h); } x.font='600 10px monospace'; x.fillStyle='#fff'; x.fillText('NOW '+y,w-70,h-10); }
+  else { x.strokeStyle='#ffffff40'; x.lineWidth=1; x.strokeRect(8,8,w-16,h-16); x.font='500 10px monospace'; x.fillStyle='#ffffffaa'; x.fillText(String(y),w-40,h-14); }
+}
+
 /* ================= MÜZİK: API + ÇALAR + ŞARKIYA GÖRE ANİMASYON ================= */
 const Music = {
   audio:new Audio(), cur:null, room:null, playing:false, embedOn:false, ctrl:null, iframeApi:null,
@@ -1027,26 +1071,18 @@ function drawScreen(room, t){
     x.font='600 20px "IBM Plex Sans",sans-serif'; x.globalAlpha=.85; x.fillText(R.genre+' · '+byGenre[room.g].length+' şarkı',w/2,h/2+26); x.globalAlpha=.7; x.fillText('Çalara git, bir plak seç',w/2,h/2+56); x.globalAlpha=1;
   } else {
     const L=Music.level, k=Beat.kick, playing=Music.playing;
-    drawVideo(x,room.g,w,h,t,k,pal,Beat.phase); x.fillStyle='#00000055'; x.fillRect(0,0,w,h);
-    // arka plan deseni şarkıya göre
-    const mode=F.mode;
-    for(let i=0;i<10;i++){ const a=(i/10)*Math.PI*2+Beat.phase*(mode==='wave'?.3:.1);
-      x.strokeStyle=pal[i%3]+'55'; x.lineWidth=2+k*6; x.beginPath();
-      if(mode==='sweep'||mode==='chase'){ x.moveTo(w/2,h+10); x.lineTo(w/2+Math.cos(a)*w,h-Math.abs(Math.sin(a))*h*1.4); }
-      else { x.arc(w*0.72,h/2,(i*22+Beat.phase*20)%240,0,7); }
-      x.stroke(); }
-    // kapak
-    const cs=150+k*10; const cx=24, cy=(h-cs)/2;
-    if(Music.coverImg){ x.save(); x.shadowColor='#000'; x.shadowBlur=20; x.drawImage(Music.coverImg,cx,cy,cs,cs); x.restore(); }
-    else { x.fillStyle='#111'; x.beginPath(); x.arc(cx+cs/2,cy+cs/2,cs/2,0,7); x.fill(); x.fillStyle=pal[0]; x.beginPath(); x.arc(cx+cs/2,cy+cs/2,cs/6,0,7); x.fill(); }
+    const i=Music.cur, p=songProgress();
+    fingerprint(x,w,h,i,t,k,pal); x.fillStyle='#0000004d'; x.fillRect(0,0,w,h);
+    coverMosaic(x,w,h,i,p,k);
     const tr=T[Music.cur];
     x.textAlign='left'; x.fillStyle='#fff'; x.font='800 28px "Bricolage Grotesque",sans-serif';
     let title=tr[1]; if(x.measureText(title).width>310){ while(x.measureText(title+'…').width>310) title=title.slice(0,-1); title+='…'; }
     x.fillText(title,196,70); x.font='600 18px "IBM Plex Sans",sans-serif'; x.globalAlpha=.85; x.fillText(tr[2].split(',')[0]+(tr[4]?' · '+tr[4]:''),196,96); x.globalAlpha=1;
     x.font='500 13px "IBM Plex Mono",monospace'; x.fillStyle=pal[1]; x.fillText((playing?'▶ ÇALIYOR':'❚❚ DURAKLATILDI')+' · '+Math.round(F.tempo)+' BPM',196,120);
     // ekolayzer
-    const N=24; for(let i=0;i<N;i++){ const v=playing?(Music.beatOn&&Music.freq? Music.freq[2+i*3]/255 : Math.abs(Math.sin(Beat.phase*Math.PI*(1+(i%5)*.5)+i*F.seed*7))*(.3+.7*F.energy)*(.6+k*.5)):.05;
+    const N=24; for(let j=0;j<N;j++){ const i=j; const v=playing?(Music.beatOn&&Music.freq? Music.freq[2+i*3]/255 : Math.abs(Math.sin(Beat.phase*Math.PI*(1+(i%5)*.5)+i*F.seed*7))*(.3+.7*F.energy)*(.6+k*.5)):.05;
       const bh=8+v*90; x.fillStyle=pal[i%3]; x.fillRect(196+i*12.5,h-24-bh,9,bh); }
+    eraOverlay(x,w,h,Music.cur,t,k);
   }
   s.tex.needsUpdate=true;
 }
@@ -1181,7 +1217,7 @@ SP.tokenReq=async function(p){ const r=await fetch('https://accounts.spotify.com
 SP.init=async function(){
   const q=new URLSearchParams(location.search); const code=q.get('code');
   try{ if(code){ await this.tokenReq({grant_type:'authorization_code',code,redirect_uri:this.redirect,code_verifier:localStorage.getItem('sp.ver')}); history.replaceState(null,'',this.redirect); }
-    if(this.ref){ if(Date.now()>this.exp) await this.tokenReq({grant_type:'refresh_token',refresh_token:this.ref}); this.on=true; setInterval(()=>this.poll(),4000); }
+    if(this.ref){ if(Date.now()>this.exp) await this.tokenReq({grant_type:'refresh_token',refresh_token:this.ref}); this.on=!localStorage.getItem('sp.off'); setInterval(()=>this.poll(),4000); }
   }catch(e){ toast('Spotify bağlantısı yenilenemedi, ⋯ menüsünden tekrar bağlan'); }
   spLabel();
 };
@@ -1191,14 +1227,15 @@ SP.api=async function(m,p,body){ if(Date.now()>this.exp) await this.tokenReq({gr
 SP.play=async function(i){
   const uris=[T[i][0]].concat(Music.queue.map(k=>T[k][0])).map(id=>'spotify:track:'+id);
   try{ const d=(await this.api('GET','/me/player/devices')).devices||[]; const dev=d.find(x=>x.is_active)||d.find(x=>x.type==='Smartphone')||d[0];
-    if(!dev){ Music.status('Spotify uygulamasını bir kez aç, sonra tekrar dokun'); location.href='spotify:track:'+T[i][0]; return; }
+    if(!dev){ Music.status('Spotify uyuyor. ⋯ menüsünden "Spotify\'ı uyandır"a bas, Spotify açılınca geri dön ve şarkıya tekrar dokun.'); toast('Spotify uygulaması uyuyor, bir kez açıp geri dön'); return; }
+    if(!dev.is_active){ await this.api('PUT','/me/player',{device_ids:[dev.id],play:false}).catch(()=>{}); }
     await this.api('PUT','/me/player/play?device_id='+dev.id,{uris}); this.lastId=T[i][0]; this.pos=0; this.posAt=performance.now(); Music.playing=true; Music.status('Spotify\'da tam şarkı · '+dev.name);
   }catch(e){ Music.status(e.status===403?'Spotify Premium gerekiyor':'Spotify\'a ulaşılamadı'); }
 };
 SP.poll=async function(){ try{ const s=await this.api('GET','/me/player'); if(!s||!s.item) return; Music.playing=s.is_playing; this.pos=s.progress_ms; this.posAt=performance.now(); this.dur=s.item.duration_ms;
   $('np').classList.toggle('playing',s.is_playing); $('npToggle').textContent=s.is_playing?'❚❚':'▶'; $('npBar').style.width=(s.progress_ms/s.item.duration_ms*100)+'%';
   if(s.item.id!==this.lastId){ this.lastId=s.item.id; const i=T.findIndex(t=>t[0]===s.item.id); if(i>=0){ Music.queue=Music.queue.filter(k=>k!==i); Music.showTrack(i); onSongChange(); djTalk(); } } }catch(e){} };
-function spLabel(){ $('oSp').textContent=SP.on?'Spotify bağlı ✓ (tam şarkı Spotify uygulamasında)':'iPhone\'da tam şarkı: Spotify\'ı bağla'; }
+function spLabel(){ $('oWake').style.display=SP.on?'block':'none'; $('oSpOff').style.display=SP.on?'block':'none'; $('oSp').textContent=SP.on?'Spotify bağlı ✓ (tam şarkı Spotify uygulamasında)':'iPhone\'da tam şarkı: Spotify\'ı bağla'; }
 
 /* ===== ODA RADYOSU + DJ ARKADAŞ + UNUTULMUŞ PLAKLAR ===== */
 Music.queue=[]; Music.dj=null;
@@ -1724,7 +1761,7 @@ function initHomeUI(){
   $('homeFloors').querySelectorAll('.fb').forEach(b=>b.onclick=()=>goFloor(+b.dataset.fi));
 }
 load(); coinUI(); fullLabel(); onResize(); initHomeUI(); goHome(); if(resume()) $('home').classList.remove('show'); SP.init();
-$('oSp').onclick=()=>SP.login(); $('bChill').onclick=()=>setChill(true); $('mForgot').onclick=openForgotten;
+$('oSp').onclick=()=>{ if(!SP.on) SP.login(); }; $('oWake').onclick=()=>{ location.href='spotify:'; }; $('oSpOff').onclick=()=>{ SP.on=!SP.on; localStorage.setItem('sp.off',SP.on?'':'1'); $('oSpOff').textContent=SP.on?'Önizlemeyi uygulama içinde çal (30 sn)':'Tam şarkıyı Spotify\'dan çal'; toast(SP.on?'Tam şarkı: Spotify uygulaması':'Uygulama içi önizleme'); }; $('bChill').onclick=()=>setChill(true); $('mForgot').onclick=openForgotten;
 setTimeout(()=>{ $('load').remove(); },60);
 requestAnimationFrame(frame);
 
