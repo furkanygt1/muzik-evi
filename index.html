@@ -401,7 +401,7 @@ const LINES = {
 
 /* ================= 3D MOTOR ================= */
 const canvas = document.getElementById('gl');
-const renderer = new THREE.WebGLRenderer({canvas, antialias:true, powerPreference:'high-performance'});
+const renderer = new THREE.WebGLRenderer({canvas, antialias:(window.devicePixelRatio||1)<2, powerPreference:'default'});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 1.75));
 renderer.outputEncoding = THREE.sRGBEncoding;
 const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 500);
@@ -1241,6 +1241,25 @@ function resume(){ try{ const s=JSON.parse(localStorage.getItem('muzikEvi.place'
   enterFloorNow(s.fi); PLAYER.obj.position.set(s.x,0,s.z); if(s.cur!=null){ Music.room=s.room; Music.showTrack(s.cur); Music.status('Kaldığın yerden: ▶ ile devam et'); $('npToggle').textContent='▶'; Music.resumeIdx=s.cur; }
   if(s.dj){ const n=WORLD.npcs.find(n=>n.id===s.dj); if(n){ Music.dj=n; n.follow=true; } } return true; }catch(e){ return false; } }
 
+/* ===== PİL VE ISI: görünümü bozmadan gereksiz işi azalt ===== */
+const PERF={cap:Math.min(window.devicePixelRatio||1, /iPhone|iPad|Android/i.test(navigator.userAgent)?1.4:1.75), pr:0, acc:0, n:0, lastActive:0, frame:0};
+PERF.pr=PERF.cap; renderer.setPixelRatio(PERF.pr);
+function isActive(now){ const a = JOY.id!==null || DRAG.id!==null || PLAYER.goal || KEYS.size || TRANS || (PLAYER.obj && MODE==='floor' && Math.hypot(PLAYER.vel.x,PLAYER.vel.z)>0.05); if(a) PERF.lastActive=now; return now-PERF.lastActive<1500; }
+/* hareket varken 60, dururken 30, chill ve arka planda 24 kare */
+function frameBudget(now){ if(document.hidden) return 1e9; if(CHILL) return 1000/24; return isActive(now)?0:1000/30; }
+/* kare süresi uzarsa çözünürlüğü biraz düşür, rahatlarsa geri yükselt */
+function adaptRes(dt){ PERF.acc+=dt; PERF.n++; if(PERF.acc<2) return; const fps=PERF.n/PERF.acc; PERF.acc=0; PERF.n=0;
+  let pr=PERF.pr; if(fps<26 && pr>1.0) pr-=0.1; else if(fps>40 && pr<PERF.cap) pr+=0.05; pr=Math.round(pr*100)/100; if(pr!==PERF.pr){ PERF.pr=pr; renderer.setPixelRatio(pr); onResize(); } }
+/* sabit nesnelerin matris hesabını dondur (en büyük işlemci tasarrufu) */
+function freezeStatic(){
+  scene.traverse(o=>{ o.matrixAutoUpdate=false; o.updateMatrix(); });
+  const live=o=>o&&o.traverse(c=>{ c.matrixAutoUpdate=true; });
+  if(WORLD){ WORLD.npcs.forEach(n=>live(n.person)); WORLD.floats.forEach(f=>live(f.o)); WORLD.rooms.forEach(r=>{ r.bandMembers.forEach(m=>{ live(m.holder); }); r.cones.forEach(live); r.pulses.forEach(live); live(r.vendor); }); }
+  if(HOME) live(HOME.vinyl);
+  live(PLAYER.obj); if(marker) live(marker);
+  scene.updateMatrixWorld(true);
+}
+
 /* ================= NPC'LER ================= */
 const FRIEND = {}; // sohbet ilerlemesi (oturum boyunca)
 function npcLook(seed){
@@ -1562,7 +1581,7 @@ function goFloor(fi){
   TRANS={t:0, dur:3.3, from:CURFLOOR, to:fi, built:false};
   fx.style.display='block';
 }
-function goHome(){ closeSheets(); standUp(); MODE='home'; CURFLOOR=null; buildHome(); $('home').classList.add('show'); setPlayUI(false); $('where').innerHTML='Müzik Evi · dışarıdan'; }
+function goHome(){ closeSheets(); standUp(); MODE='home'; CURFLOOR=null; buildHome(); freezeStatic(); $('home').classList.add('show'); setPlayUI(false); $('where').innerHTML='Müzik Evi · dışarıdan'; }
 function setPlayUI(on){ $('rbar').style.display=on?'flex':'none'; $('joy').style.display=on?'block':'none'; if(!on) $('act').classList.remove('show'); $('bubbles').style.display=on?'block':'none'; }
 function updateTrans(dt){
   if(!TRANS) return; TRANS.t+=dt; const p=TRANS.t/TRANS.dur;
@@ -1573,7 +1592,7 @@ function updateTrans(dt){
   if(p>=1){ TRANS=null; fx.style.display='none'; toast(FLOORS[CURFLOOR].name); }
 }
 function enterFloorNow(fi){
-  $('home').classList.remove('show'); MODE='floor'; CURFLOOR=fi; buildFloor(fi); makePlayer(); CAM.yaw=0; CAM.pitch=0.62; setPlayUI(true);
+  $('home').classList.remove('show'); MODE='floor'; CURFLOOR=fi; buildFloor(fi); makePlayer(); freezeStatic(); CAM.yaw=0; CAM.pitch=0.62; setPlayUI(true);
   document.documentElement.style.setProperty('--rc',FLOORS[fi].color);
   if(!enterFloorNow.shown){ enterFloorNow.shown=true; $('hint').style.opacity=1; setTimeout(()=>{ $('hint').style.opacity=0; },8000); }
   CAM.dist = window.innerWidth<window.innerHeight ? 11 : 9.5;
@@ -1625,7 +1644,9 @@ function updateOverlay(){
 /* ---------- ana döngü ---------- */
 let last=performance.now(), GT=0, screenAcc=0;
 function frame(now){
-  const dt=Math.min(0.05,(now-last)/1000); last=now; GT+=dt;
+  requestAnimationFrame(frame);
+  if(now-last < frameBudget(now)-2) return;
+  const dt=Math.min(0.05,(now-last)/1000); last=now; GT+=dt; PERF.frame++; adaptRes(dt);
   updateTrans(dt); updateBeat(dt); econTick(dt);
   if(MODE==='home' && HOME){
     if(CAM.homeAuto) CAM.homeYaw+=dt*0.12; HOME.vinyl.rotation.z-=dt*1.2;
@@ -1647,7 +1668,7 @@ function frame(now){
       if(room.vendor) animatePerson(room.vendor,'vendor',GT);
       if(room===cr || Music.room===room.g){ screenAcc+=dt; }
     });
-    screenAcc+=dt; if(screenAcc>1/24){ screenAcc=0; WORLD.rooms.forEach(room=>{ if(room===cr || Music.room===room.g || room.screen.last<0){ drawScreen(room,GT); room.screen.last=GT; } }); }
+    screenAcc+=dt; if(screenAcc>1/15){ screenAcc=0; WORLD.rooms.forEach(room=>{ if(room===cr || Music.room===room.g || room.screen.last<0){ drawScreen(room,GT); room.screen.last=GT; } }); }
     WORLD.floats.forEach(f=>{ const active=f.room && Music.room===f.room.g && Music.playing; const k=active?Beat.kick:0;
       switch(f.type){
       case 'spin': f.o.rotation.y+=dt*(active?2.5:0.4); break;
@@ -1674,9 +1695,8 @@ function frame(now){
     if(room && Music.room===room.g && !Music.playing && Music.audio.ended===false){}
     if(room && !anySheet()) document.documentElement.style.setProperty('--rc',room.R.acc);
   }
-  updateOverlay();
+  if(PERF.frame%2===0) updateOverlay();
   renderer.render(scene,camera);
-  requestAnimationFrame(frame);
 }
 function anySheet(){ return ['music','talk','stand','floors','more','game','style','acts'].some(id=>$(id).classList.contains('show')); }
 function updatePlayer(dt){
