@@ -141,6 +141,7 @@ button{font-family:var(--body)}
 #rbar .achip{background:var(--glass);backdrop-filter:blur(8px)}
 body.chill .top,body.chill #rbar,body.chill #joy,body.chill #act,body.chill #bubbles,body.chill #upnext{display:none!important}
 body.chill #np{top:auto;bottom:calc(env(safe-area-inset-bottom) + 20px)}
+.top{gap:5px}.top .btn{padding:8px 9px;font-size:14px}.top .chip{padding:8px 10px}
 #load{position:fixed;inset:0;z-index:40;display:grid;place-items:center;background:var(--bg);font:800 22px var(--display)}
 @media (prefers-reduced-motion:reduce){#np .vin,.hero .disc{animation:none}}
 </style>
@@ -156,6 +157,7 @@ body.chill #np{top:auto;bottom:calc(env(safe-area-inset-bottom) + 20px)}
   <button class="btn" id="bLift" type="button" aria-label="Asansör">⇅</button>
   <button class="btn" id="bMusic" type="button" aria-label="Müzik">♪</button>
   <button class="btn" id="bActs" type="button">★</button>
+  <button class="btn" id="bFp" type="button" aria-label="Birinci şahıs kamera">👁</button>
   <button class="btn" id="bChill" type="button" aria-label="Chill modu">☾</button>
 </div>
 <div id="np" aria-live="polite">
@@ -737,7 +739,7 @@ function buildRoom(g,i,x0,f){
   box(9,0.5,3.6,'#141414',cx,0.25,sz,scene); box(9.1,0.08,3.7,R.acc,cx,0.52,sz,scene,{emissive:R.acc,ei:.6});
   W.colliders.push([cx-4.6,cx+4.6,-ZD/2,sz+1.9]);
   // ekran
-  const sc=document.createElement('canvas'); sc.width=512; sc.height=256; const st=new THREE.CanvasTexture(sc); st.encoding=THREE.sRGBEncoding;
+  const sc=document.createElement('canvas'); sc.width=768; sc.height=384; const st=new THREE.CanvasTexture(sc); st.encoding=THREE.sRGBEncoding; st.generateMipmaps=false; st.minFilter=THREE.LinearFilter; st.magFilter=THREE.LinearFilter;
   const scr=mesh(geo('plane',8.4,4.2),new THREE.MeshBasicMaterial({map:st}),cx,2.85,-ZD/2+0.2,scene);
   box(8.7,4.5,0.1,'#0a0a0a',cx,2.85,-ZD/2+0.15,scene);
   room.screen={canvas:sc, ctx:sc.getContext('2d'), tex:st, last:-1};
@@ -942,7 +944,7 @@ function coverMosaic(x,w,h,i,p,k){
   for(let r=0;r<N;r++) for(let c=0;c<N;c++){
     const sd=hash(T[i][0]+r+'-'+c), ang=sd*Math.PI*2, dist=160+sd*120;
     const hx=cx+c*ts, hy=cy+r*ts, sx=hx+Math.cos(ang)*dist, sy=hy+Math.sin(ang)*dist*0.6;
-    const px=sx+(hx-sx)*a+(Math.random()-.5)*k*4, py=sy+(hy-sy)*a+(Math.random()-.5)*k*4;
+    const wob=Math.sin(Beat.phase*Math.PI*2+sd*6)*k*2; const px=sx+(hx-sx)*a+wob, py=sy+(hy-sy)*a+wob*0.6;
     x.globalAlpha=0.35+0.65*a;
     if(im) x.drawImage(im, c*im.naturalWidth/N, r*im.naturalHeight/N, im.naturalWidth/N, im.naturalHeight/N, px, py, ts+0.6, ts+0.6);
     else { x.fillStyle=Music.feat.palette[(r+c)%3]; x.fillRect(px,py,ts-1,ts-1); }
@@ -952,10 +954,10 @@ function coverMosaic(x,w,h,i,p,k){
 /* 4) şarkının çağı: yıla göre görüntü dokusu */
 function eraOverlay(x,w,h,i,t,k){
   const y=T[i][4]||2015;
-  if(y<1980){ x.fillStyle='rgba(255,170,80,0.12)'; x.fillRect(0,0,w,h); for(let q=0;q<160;q++){ x.fillStyle=`rgba(255,255,255,${Math.random()*0.12})`; x.fillRect(Math.random()*w,Math.random()*h,1.5,1.5);} if(Math.random()<0.15){ x.fillStyle='#ffffff22'; x.fillRect(Math.random()*w,0,1,h);} const g=x.createRadialGradient(w/2,h/2,h*0.3,w/2,h/2,h*0.9); g.addColorStop(0,'#0000'); g.addColorStop(1,'#000a'); x.fillStyle=g; x.fillRect(0,0,w,h); x.font='600 11px monospace'; x.fillStyle='#ffd7a0'; x.fillText(y+' · FİLM',w-90,h-10); }
-  else if(y<1990){ for(let yy=0;yy<h;yy+=3){ x.fillStyle='rgba(0,0,0,0.18)'; x.fillRect(0,yy,w,1);} const ty=(t*60)%h; x.fillStyle='rgba(255,255,255,0.08)'; x.fillRect(0,ty,w,6); x.globalCompositeOperation='lighter'; x.fillStyle='rgba(255,0,80,0.05)'; x.fillRect(2+k*3,0,w,h); x.globalCompositeOperation='source-over'; x.font='700 14px monospace'; x.fillStyle='#fff'; x.fillText('▶ PLAY  '+y,14,22); }
+  if(y<1980){ x.fillStyle='rgba(255,170,80,0.12)'; x.fillRect(0,0,w,h); const g=x.createRadialGradient(w/2,h/2,h*0.3,w/2,h/2,h*0.9); g.addColorStop(0,'#0000'); g.addColorStop(1,'#000a'); x.fillStyle=g; x.fillRect(0,0,w,h); x.font='600 11px monospace'; x.fillStyle='#ffd7a0'; x.fillText(y+' · FİLM',w-90,h-10); }
+  else if(y<1990){ x.fillStyle='rgba(255,0,170,0.06)'; x.fillRect(0,0,w,h); x.font='700 14px monospace'; x.fillStyle='#fff'; x.fillText('▶ PLAY  '+y,14,22); }
   else if(y<2000){ x.fillStyle='#000c'; x.fillRect(0,h-26,w,26); x.fillStyle='#e30613'; x.fillRect(0,h-26,58,26); x.font='800 13px sans-serif'; x.fillStyle='#fff'; x.fillText('KLİP 90',6,h-8); const msg=T[i][2].split(',')[0]+' — '+T[i][1]+' · '+y+' · istek hattı açık  ·  '; x.save(); x.beginPath(); x.rect(60,h-26,w-60,26); x.clip(); x.font='600 13px sans-serif'; const mw=x.measureText(msg).width; const off=(t*50)%mw; x.fillText(msg+msg+msg,64-off,h-8); x.restore(); }
-  else if(y<2010){ x.font='900 26px sans-serif'; x.fillStyle='#ffffffcc'; x.fillText('M',w-38,32); if(k>0.8){ x.fillStyle='rgba(255,255,255,0.18)'; x.fillRect(0,0,w,h); } x.font='600 10px monospace'; x.fillStyle='#fff'; x.fillText('NOW '+y,w-70,h-10); }
+  else if(y<2010){ x.font='900 26px sans-serif'; x.fillStyle='#ffffffcc'; x.fillText('M',w-38,32); x.fillStyle=`rgba(255,255,255,${k*0.06})`; x.fillRect(0,0,w,h); x.font='600 10px monospace'; x.fillStyle='#fff'; x.fillText('NOW '+y,w-70,h-10); }
   else { x.strokeStyle='#ffffff40'; x.lineWidth=1; x.strokeRect(8,8,w-16,h-16); x.font='500 10px monospace'; x.fillStyle='#ffffffaa'; x.fillText(String(y),w-40,h-14); }
 }
 
@@ -1061,7 +1063,7 @@ function updateBeat(dt){
 
 /* Sahne ekranı: kapak, şarkı adı, şarkıya göre değişen görselleştirme */
 function drawScreen(room, t){
-  const s=room.screen, x=s.ctx, w=512, h=256, R=room.R;
+  const s=room.screen, x=s.ctx, w=512, h=256, R=room.R; x.setTransform(1.5,0,0,1.5,0,0);
   const active = Music.room===room.g && Music.cur!=null;
   const F=active?Music.feat:null, pal=F?F.palette:R.light;
   const g=x.createLinearGradient(0,0,w,h); g.addColorStop(0,shade(pal[0],-0.42)); g.addColorStop(1,shade(pal[2]||R.acc,-0.48)); x.fillStyle=g; x.fillRect(0,0,w,h);
@@ -1454,7 +1456,7 @@ function sitTogether(n){ n.follow=true; sitPlayerNearest(n.room); }
 
 /* ================= OYUNCU, KONTROLLER, ARAYÜZ, DÖNGÜ ================= */
 const PLAYER={obj:null, vel:{x:0,z:0}, goal:null, sitting:false, dance:false, holding:null};
-const CAM={yaw:0, pitch:0.62, dist:9.5, homeYaw:0.5, homeAuto:true};
+const CAM={yaw:0, pitch:0.62, dist:9.5, homeYaw:0.5, homeAuto:true, fp:false, fpPitch:0};
 let MODE='home', CURFLOOR=null;
 const tmpV=new THREE.Vector3();
 
@@ -1511,7 +1513,7 @@ canvas.addEventListener('pointerdown',e=>{ if(DRAG.id!==null) return; if(CHILL){
 canvas.addEventListener('pointermove',e=>{ if(e.pointerId!==DRAG.id) return; const dx=e.clientX-DRAG.lx, dy=e.clientY-DRAG.ly; DRAG.lx=e.clientX; DRAG.ly=e.clientY;
   if(Math.hypot(e.clientX-DRAG.sx,e.clientY-DRAG.sy)>10) DRAG.moved=true;
   if(DRAG.joy){ if(DRAG.moved) joyMove(e); return; }
-  if(DRAG.moved){ if(MODE==='home'){ CAM.homeYaw-=dx*0.006; CAM.homeAuto=false; } else { CAM.yaw-=dx*0.006; CAM.pitch=Math.max(0.25,Math.min(1.25,CAM.pitch+dy*0.004)); } } });
+  if(DRAG.moved){ if(MODE==='home'){ CAM.homeYaw-=dx*0.006; CAM.homeAuto=false; } else if(CAM.fp){ CAM.yaw-=dx*0.006; CAM.fpPitch=Math.max(-0.8,Math.min(0.8,CAM.fpPitch-dy*0.004)); } else { CAM.yaw-=dx*0.006; CAM.pitch=Math.max(0.25,Math.min(1.25,CAM.pitch+dy*0.004)); } } });
 function dragEnd(e){ if(e.pointerId!==DRAG.id) return; DRAG.id=null; if(DRAG.joy){ DRAG.joy=false; joyReset(); joyEl.style.left=''; joyEl.style.top=''; joyEl.style.bottom=''; } if(!DRAG.moved && e.type==='pointerup') onTap(e.clientX,e.clientY); }
 canvas.addEventListener('pointerup',dragEnd); canvas.addEventListener('pointercancel',dragEnd);
 canvas.addEventListener('wheel',e=>{ e.preventDefault(); if(MODE==='floor') CAM.dist=Math.max(5,Math.min(16,CAM.dist+e.deltaY*0.01)); },{passive:false});
@@ -1724,8 +1726,9 @@ function frame(now){
     if(marker && marker.visible){ marker.userData.t-=dt; marker.scale.setScalar(1+(0.8-marker.userData.t)); marker.material.opacity=Math.max(0,marker.userData.t); if(marker.userData.t<=0) marker.visible=false; }
     // kamera
     const pp=PLAYER.obj.position; const tx=pp.x+Math.sin(CAM.yaw)*Math.cos(CAM.pitch)*CAM.dist, ty=1.2+Math.sin(CAM.pitch)*CAM.dist, tz=pp.z+Math.cos(CAM.yaw)*Math.cos(CAM.pitch)*CAM.dist;
-    if(CHILL && cr){ const a=GT*0.08; camera.position.lerp(tmpV.set(cr.cx+Math.sin(a)*9,4.5,1+Math.cos(a)*6),Math.min(1,dt*1.5)); camera.lookAt(cr.cx,2.4,-ZD/2+2); }
-    else { camera.position.lerp(tmpV.set(tx,ty,tz), Math.min(1,dt*6)); camera.lookAt(pp.x,pp.y+1.2,pp.z); }
+    if(CAM.fp && !CHILL){ const eye=tmpV.set(pp.x,(PLAYER.sitting?1.25:1.7)+pp.y,pp.z); camera.position.copy(eye); camera.lookAt(eye.x-Math.sin(CAM.yaw)*Math.cos(CAM.fpPitch), eye.y+Math.sin(CAM.fpPitch), eye.z-Math.cos(CAM.yaw)*Math.cos(CAM.fpPitch)); PLAYER.obj.visible=false; if(!PLAYER.goal && JOY.id===null) PLAYER.obj.rotation.y=CAM.yaw+Math.PI; }
+    else if(CHILL && cr){ const a=GT*0.08; camera.position.lerp(tmpV.set(cr.cx+Math.sin(a)*9,4.5,1+Math.cos(a)*6),Math.min(1,dt*1.5)); camera.lookAt(cr.cx,2.4,-ZD/2+2); }
+    else { PLAYER.obj.visible=true; camera.position.lerp(tmpV.set(tx,ty,tz), Math.min(1,dt*6)); camera.lookAt(pp.x,pp.y+1.2,pp.z); }
     // arayüz
     NEAR=findNear(); const a=$('act'); if(NEAR && !anySheet()){ a.textContent=NEAR.label; a.classList.add('show'); } else a.classList.remove('show');
     const room=cr; $('where').innerHTML=`<b>${FLOORS[CURFLOOR].short}</b> · ${room?room.R.room:'Lobi'}`;
@@ -1740,7 +1743,7 @@ function updatePlayer(dt){
   const p=PLAYER.obj; let ix=JOY.x, iz=JOY.y;
   if(KEYS.has('a')||KEYS.has('arrowleft')) ix=-1; if(KEYS.has('d')||KEYS.has('arrowright')) ix=1; if(KEYS.has('w')||KEYS.has('arrowup')) iz=-1; if(KEYS.has('s')||KEYS.has('arrowdown')) iz=1;
   let mx=0, mz=0, moving=false;
-  if(!moving && JOY.id===null && !DRAG.joy){ PLAYER.idleT=(PLAYER.idleT||0)+dt; if(PLAYER.idleT>0.6 && !(DRAG.id!==null&&DRAG.moved)) CAM.yaw=lerpAngle(CAM.yaw,PLAYER.obj.rotation.y+Math.PI,Math.min(1,dt*0.8)); }
+  if(!moving && JOY.id===null && !DRAG.joy){ PLAYER.idleT=(PLAYER.idleT||0)+dt; if(!CAM.fp && PLAYER.idleT>0.6 && !(DRAG.id!==null&&DRAG.moved)) CAM.yaw=lerpAngle(CAM.yaw,PLAYER.obj.rotation.y+Math.PI,Math.min(1,dt*0.8)); }
   if(Math.hypot(ix,iz)>0.1){ standUp(); PLAYER.goal=null; PLAYER.dance=false;
     const s=Math.sin(CAM.yaw), c=Math.cos(CAM.yaw); mx=ix*c+iz*s; mz=-ix*s+iz*c; const m=Math.min(1,Math.hypot(ix,iz)); const l=Math.hypot(mx,mz); mx=mx/l*m; mz=mz/l*m; moving=true; }
   else if(PLAYER.goal){ const dx=PLAYER.goal.x-p.position.x, dz=PLAYER.goal.z-p.position.z, d=Math.hypot(dx,dz);
@@ -1761,7 +1764,7 @@ function initHomeUI(){
   $('homeFloors').querySelectorAll('.fb').forEach(b=>b.onclick=()=>goFloor(+b.dataset.fi));
 }
 load(); coinUI(); fullLabel(); onResize(); initHomeUI(); goHome(); if(resume()) $('home').classList.remove('show'); SP.init();
-$('oSp').onclick=()=>{ if(!SP.on) SP.login(); }; $('oWake').onclick=()=>{ location.href='spotify:'; }; $('oSpOff').onclick=()=>{ SP.on=!SP.on; localStorage.setItem('sp.off',SP.on?'':'1'); $('oSpOff').textContent=SP.on?'Önizlemeyi uygulama içinde çal (30 sn)':'Tam şarkıyı Spotify\'dan çal'; toast(SP.on?'Tam şarkı: Spotify uygulaması':'Uygulama içi önizleme'); }; $('bChill').onclick=()=>setChill(true); $('mForgot').onclick=openForgotten;
+$('oSp').onclick=()=>{ if(!SP.on) SP.login(); }; $('oWake').onclick=()=>{ location.href='spotify:'; }; $('oSpOff').onclick=()=>{ SP.on=!SP.on; localStorage.setItem('sp.off',SP.on?'':'1'); $('oSpOff').textContent=SP.on?'Önizlemeyi uygulama içinde çal (30 sn)':'Tam şarkıyı Spotify\'dan çal'; toast(SP.on?'Tam şarkı: Spotify uygulaması':'Uygulama içi önizleme'); }; $('bChill').onclick=()=>setChill(true); $('bFp').onclick=()=>{ CAM.fp=!CAM.fp; CAM.fpPitch=0; if(CAM.fp) CAM.yaw=PLAYER.obj?PLAYER.obj.rotation.y+Math.PI:CAM.yaw; $('bFp').classList.toggle('pri',CAM.fp); toast(CAM.fp?'Birinci şahıs kamera':'Üçüncü şahıs kamera'); }; $('mForgot').onclick=openForgotten;
 setTimeout(()=>{ $('load').remove(); },60);
 requestAnimationFrame(frame);
 
