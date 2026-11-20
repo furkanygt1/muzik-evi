@@ -2408,7 +2408,7 @@ openMap=(function(prev){ return function(){ prev(); const box=$('mapBox'), cv=$(
 
 /* ===== 076: arkadaşlarla oyna (Supabase Realtime: broadcast + presence, tablo gerekmez) ===== */
 const MP={cfg:LS('mp.cfg')||{url:'',key:''}, name:LS('mp.name')||'Yiğit', id:LS('mp.id')||('p'+Math.random().toString(36).slice(2,9)), code:null, ch:null, sb:null, peers:{}, sendT:0, last:'', follow:true, log:[]};
-LS('mp.id',MP.id);
+LS('mp.id',MP.id); const MPHOOKS=[];
 /* davet linki: #oda=KOD&u=URL&k=ANAHTAR */
 (function(){ const h=new URLSearchParams(location.hash.slice(1)); if(h.get('u')&&h.get('k')){ MP.cfg={url:h.get('u'),key:h.get('k')}; LS('mp.cfg',MP.cfg); } if(h.get('oda')) MP.pendingCode=h.get('oda').toUpperCase(); if(h.toString()) history.replaceState(null,'',location.pathname); })();
 function mpLoad(){ return new Promise((ok,no)=>{ if(window.supabase) return ok(); const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js'; s.onload=ok; s.onerror=()=>no(new Error('yüklenemedi')); document.head.appendChild(s); }); }
@@ -2424,7 +2424,7 @@ async function mpJoin(code){ if(!MP.cfg.url||!MP.cfg.key){ toast('Önce Supabase
     .on('presence',{event:'sync'},()=>{ const st=ch.presenceState(); Object.keys(MP.peers).forEach(id=>{ if(!st[id]) mpDrop(id); }); Object.entries(st).forEach(([id,arr])=>{ if(id!==MP.id){ const m=arr[0]; mpPeer(id,m); } }); mpPanel(); })
     .on('presence',{event:'join'},({key,newPresences})=>{ if(key!==MP.id){ toast('👋 '+(newPresences[0]&&newPresences[0].name||'Bir arkadaş')+' odaya katıldı'); mpSend(true); if(Music.cur!=null&&Music.playing) mpShareMusic(); } })
     .on('presence',{event:'leave'},({key})=>{ const P=MP.peers[key]; if(P) toast('👋 '+P.name+' ayrıldı'); mpDrop(key); })
-    .subscribe(async s=>{ if(s==='SUBSCRIBED'){ await ch.track({name:MP.name, style:STYLE}); toast('🟢 Oda '+code+' bağlandı'); mpSend(true); mpPanel(); } else if(s==='CHANNEL_ERROR'||s==='TIMED_OUT'){ toast('🔴 Bağlanamadı: Supabase URL/anahtarı kontrol et'); } }); }
+    ; MPHOOKS.forEach(f=>f(ch)); ch.subscribe(async s=>{ if(s==='SUBSCRIBED'){ await ch.track({name:MP.name, style:STYLE}); toast('🟢 Oda '+code+' bağlandı'); mpSend(true); mpPanel(); } else if(s==='CHANNEL_ERROR'||s==='TIMED_OUT'){ toast('🔴 Bağlanamadı: Supabase URL/anahtarı kontrol et'); } }); }
 function mpLeave(){ if(MP.ch){ try{ MP.ch.unsubscribe(); }catch(e){} MP.ch=null; } Object.keys(MP.peers).forEach(mpDrop); MP.code=null; }
 function mpPeer(id,m){ let P=MP.peers[id]; if(!P){ P=MP.peers[id]={id,name:m.name||'Arkadaş',style:m.style||{},obj:null,tx:0,tz:0,ry:0,h:null,f:null,anim:'idle',bub:null,bubT:0}; } else { P.name=m.name||P.name; if(m.style&&JSON.stringify(m.style)!==JSON.stringify(P.style)){ P.style=m.style; if(P.obj){ scene.remove(P.obj); P.obj=null; } } } return P; }
 function mpDrop(id){ const P=MP.peers[id]; if(!P) return; if(P.obj&&P.obj.parent) P.obj.parent.remove(P.obj); if(P.tag) P.tag.remove(); delete MP.peers[id]; mpPanel(); }
@@ -2544,6 +2544,62 @@ interact=(function(prev){ return function(it){ if(it.type==='tv'){ openTV(); ret
     v.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1); rc.setFromCamera(v,camera); const p=new THREE.Plane(new THREE.Vector3(0,0,1),ZD/2-0.32), hit=new THREE.Vector3(); if(!rc.ray.intersectPlane(p,hit)) return;
     if(Math.abs(hit.x-r.cx)<2.6&&Math.abs(hit.y-2.7)<1.5&&Math.hypot(PLAYER.obj.position.x-r.cx,PLAYER.obj.position.z)<14){ openTV(); setTimeout(()=>{ PLAYER.goal=null; },0); } },true); })();
 goStreet=(function(prev){ return function(){ if(TV.vid&&!TV.mini&&$('tv').style.display!=='none') tvMini(); prev(); }; })(goStreet);
+
+/* ===== 078: YouTube araması (anahtarsız, çok yollu) + sesli sohbet (WebRTC, Supabase sinyali) ===== */
+/* ---------- YouTube: birden fazla anahtarsız kaynak dene ---------- */
+const YT_PIPED=['https://pipedapi.kavin.rocks','https://api.piped.yt','https://pipedapi.adminforge.de','https://pipedapi.drgns.space','https://piped-api.privacy.com.de','https://pipedapi.leptons.xyz','https://pipedapi.reallyaweso.me'];
+const YT_PROXY=[u=>'https://corsproxy.io/?url='+encodeURIComponent(u), u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u), u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u), u=>'https://thingproxy.freeboard.io/fetch/'+u];
+let YT_OK=LS('yt.ok')||null; // en son çalışan kaynak
+function ytParse(html){ const m=html.match(/var ytInitialData\s*=\s*(\{.+?\});\s*<\/script>/s)||html.match(/ytInitialData"\]\s*=\s*(\{.+?\});/s); if(!m) return null; let d; try{ d=JSON.parse(m[1]); }catch(e){ return null; }
+  const out=[]; (function walk(o){ if(!o||typeof o!=='object'||out.length>=15) return; if(o.videoRenderer&&o.videoRenderer.videoId){ const v=o.videoRenderer; const len=(v.lengthText&&v.lengthText.simpleText||'').split(':').reduce((a,b)=>a*60+(+b||0),0);
+      out.push({id:v.videoId,t:(v.title&&v.title.runs&&v.title.runs[0].text)||'',c:(v.ownerText&&v.ownerText.runs&&v.ownerText.runs[0].text)||'',th:'https://i.ytimg.com/vi/'+v.videoId+'/mqdefault.jpg',d:len}); return; }
+    for(const k in o) walk(o[k]); })(d); return out.length?out:null; }
+const ytSources=q=>{ const S=[]; const c=typeof MP!=='undefined'&&MP.cfg&&MP.cfg.url;
+  if(c) S.push(['sb',async()=>{ const r=await fetch(MP.cfg.url+'/functions/v1/yt-search?q='+encodeURIComponent(q),{headers:{Authorization:'Bearer '+MP.cfg.key,apikey:MP.cfg.key}}); if(!r.ok) throw 0; const j=await r.json(); return j.items&&j.items.length?j.items:null; }]);
+  YT_PIPED.forEach(b=>S.push(['p:'+b,async()=>{ const j=await fetch(b+'/search?filter=videos&q='+encodeURIComponent(q)).then(r=>{ if(!r.ok) throw 0; return r.json(); }); const it=(j.items||[]).filter(x=>x.url&&x.url.includes('v=')); return it.length?it.slice(0,15).map(x=>({id:x.url.split('v=')[1].slice(0,11),t:x.title,c:x.uploaderName||'',th:x.thumbnail,d:x.duration})):null; }]));
+  YT_PROXY.forEach((px,i)=>S.push(['x:'+i,async()=>{ const h=await fetch(px('https://www.youtube.com/results?search_query='+encodeURIComponent(q)+'&hl=tr&gl=TR')).then(r=>{ if(!r.ok) throw 0; return r.text(); }); return ytParse(h); }]));
+  if(YT_OK){ const k=S.findIndex(s=>s[0]===YT_OK); if(k>0) S.unshift(S.splice(k,1)[0]); } return S; };
+ytSearch=async function(q){ const S=ytSources(q);
+  /* önce son çalışanı dene, sonra kalanları 3'erli paralel yarıştır */
+  for(let i=0;i<S.length;i+=3){ const batch=S.slice(i,i+3); try{ const r=await Promise.any(batch.map(([k,f])=>tmo(f(),7000).then(x=>{ if(!x) throw 0; return [k,x]; }))); YT_OK=r[0]; LS('yt.ok',YT_OK); return r[1]; }catch(e){} }
+  return null; };
+/* oynatıcı: hata olursa YouTube uygulamasında aç seçeneği */
+tvPlay=(function(prev){ return function(id,title,thumb){ prev(id,title,thumb); const f=$('tvBody').querySelector('iframe'); if(f){ f.setAttribute('referrerpolicy','strict-origin-when-cross-origin'); f.src='https://www.youtube.com/embed/'+id+'?autoplay=1&playsinline=1&rel=0&modestbranding=1&origin='+encodeURIComponent(location.origin); f.style.height='calc(100% - 44px)'; }
+  const b=document.createElement('button'); b.className='tvi'; b.type='button'; b.style.cssText='height:44px;justify-content:center;color:#ff4d6d'; b.textContent='Video açılmazsa: YouTube uygulamasında aç ↗'; b.onclick=()=>window.open('https://www.youtube.com/watch?v='+id,'_blank'); $('tvBody').appendChild(b); }; })(tvPlay);
+/* TV her yerden: telefonda 📺 uygulaması */
+APPS.splice(1,0,['tv','📺 YouTube']);
+openPhone=(function(prev){ return function(app){ if(app==='tv'){ closeSheets(); openTV(); return; } prev(app); }; })(openPhone);
+
+/* ---------- sesli sohbet: arkadaşlarla konuş (Discord gerekmez) ---------- */
+const VC={on:false,stream:null,pcs:{},muted:false};
+const ICE={iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']},{urls:'stun:global.stun.twilio.com:3478'}]};
+function vcSig(to,data){ MP.ch&&MP.ch.send({type:'broadcast',event:'sig',payload:Object.assign({from:MP.id,to},data)}); }
+function vcPC(id){ if(VC.pcs[id]) return VC.pcs[id]; const pc=new RTCPeerConnection(ICE); VC.pcs[id]=pc; VC.stream.getTracks().forEach(t=>pc.addTrack(t,VC.stream));
+  pc.onicecandidate=e=>{ if(e.candidate) vcSig(id,{c:e.candidate}); };
+  pc.ontrack=e=>{ let a=document.getElementById('va_'+id); if(!a){ a=document.createElement('audio'); a.id='va_'+id; a.autoplay=true; a.setAttribute('playsinline',''); document.body.appendChild(a); } a.srcObject=e.streams[0]; a.play().catch(()=>toast('🔈 Sesi duymak için ekrana bir kez dokun')); };
+  pc.onconnectionstatechange=()=>{ if(pc.connectionState==='connected') toast('🎙️ '+((MP.peers[id]||{}).name||'Arkadaş')+' ile sesli bağlantı kuruldu'); if(pc.connectionState==='failed'){ toast('🎙️ Sesli bağlantı kurulamadı (ağ engelliyor olabilir)'); vcDrop(id); } };
+  return pc; }
+function vcDrop(id){ const pc=VC.pcs[id]; if(pc){ try{ pc.close(); }catch(e){} delete VC.pcs[id]; } const a=document.getElementById('va_'+id); if(a) a.remove(); }
+async function vcStart(){ if(!MP.ch){ toast('Önce bir odaya katıl'); return; } try{ VC.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}); }catch(e){ toast('🎙️ Mikrofon izni verilmedi'); return; }
+  VC.on=true; VC.muted=false; MP.ch.send({type:'broadcast',event:'vjoin',payload:{id:MP.id}}); toast('🎙️ Sesli sohbet açık'); vcUI(); mpPanel(); }
+function vcStop(){ VC.on=false; Object.keys(VC.pcs).forEach(vcDrop); if(VC.stream) VC.stream.getTracks().forEach(t=>t.stop()); VC.stream=null; MP.ch&&MP.ch.send({type:'broadcast',event:'vleave',payload:{id:MP.id}}); vcUI(); mpPanel(); }
+function vcMute(){ VC.muted=!VC.muted; VC.stream&&VC.stream.getAudioTracks().forEach(t=>t.enabled=!VC.muted); vcUI(); }
+async function vcOffer(id){ const pc=vcPC(id); const o=await pc.createOffer(); await pc.setLocalDescription(o); vcSig(id,{sdp:pc.localDescription}); }
+async function vcOnSig(p){ if(p.to!==MP.id||!VC.on) return; const pc=vcPC(p.from);
+  try{ if(p.sdp){ if(p.sdp.type==='offer'&&pc.signalingState!=='stable'){ if(MP.id<p.from) return; await pc.setLocalDescription({type:'rollback'}); } await pc.setRemoteDescription(p.sdp); if(p.sdp.type==='offer'){ await pc.setLocalDescription(await pc.createAnswer()); vcSig(p.from,{sdp:pc.localDescription}); } }
+    else if(p.c){ await pc.addIceCandidate(p.c).catch(()=>{}); } }catch(e){} }
+/* MP kanalına olayları ekle: mpJoin'i sarmala */
+MPHOOKS.push(ch=>{
+  ch.on('broadcast',{event:'vjoin'},({payload:p})=>{ if(VC.on&&p.id!==MP.id){ if(MP.id<p.id) vcOffer(p.id); else MP.ch.send({type:'broadcast',event:'vhere',payload:{id:MP.id,to:p.id}}); } })
+    .on('broadcast',{event:'vhere'},({payload:p})=>{ if(VC.on&&p.to===MP.id&&MP.id<p.id) vcOffer(p.id); })
+    .on('broadcast',{event:'vleave'},({payload:p})=>vcDrop(p.id))
+    .on('broadcast',{event:'sig'},({payload:p})=>vcOnSig(p)); });
+mpLeave=(function(prev){ return function(){ if(VC.on) vcStop(); prev(); }; })(mpLeave);
+function vcUI(){ let b=$('vcBtn'); if(!b){ b=document.createElement('button'); b.id='vcBtn'; b.type='button'; b.style.cssText='position:fixed;right:12px;bottom:calc(env(safe-area-inset-bottom) + 100px);z-index:12;width:54px;height:54px;border-radius:50%;border:0;font-size:22px;box-shadow:0 6px 20px #0008'; b.onclick=vcMute; document.body.appendChild(b); }
+  b.style.display=VC.on?'block':'none'; b.textContent=VC.muted?'🔇':'🎙️'; b.style.background=VC.muted?'#555':'#2ecc71'; b.setAttribute('aria-label',VC.muted?'Mikrofonu aç':'Mikrofonu kapat'); }
+mpPanel=(function(prev){ return function(){ prev(); if(!MP.code||!$('mpLog')) return; const row=document.createElement('div'); row.style.cssText='display:flex;gap:6px;margin:8px 0';
+  row.innerHTML=VC.on?`<button class="btn" type="button" id="vcM" style="flex:1">${VC.muted?'🔇 Mikrofon kapalı':'🎙️ Mikrofon açık'}</button><button class="btn" type="button" id="vcE">Sesliden çık</button>`:`<button class="btn pri" type="button" id="vcS" style="flex:1">🎙️ Sesli sohbete katıl</button>`;
+  $('mpLog').before(row); if(VC.on){ $('vcM').onclick=()=>{ vcMute(); mpPanel(); }; $('vcE').onclick=vcStop; } else $('vcS').onclick=vcStart; }; })(mpPanel);
 
 /* ================= OYUNCU, KONTROLLER, ARAYÜZ, DÖNGÜ ================= */
 const PLAYER={obj:null, vel:{x:0,z:0}, goal:null, sitting:false, dance:false, holding:null};
