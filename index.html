@@ -746,7 +746,7 @@ function buildRoom(g,i,x0,f){
   W.colliders.push([cx-4.6,cx+4.6,-ZD/2,sz+1.9]); }
   // ekran
   const sc=document.createElement('canvas'); sc.width=768; sc.height=384; const st=new THREE.CanvasTexture(sc); st.encoding=THREE.sRGBEncoding; st.generateMipmaps=false; st.minFilter=THREE.LinearFilter; st.magFilter=THREE.LinearFilter;
-  const SW=NS?3.2:8.4, SH=NS?1.6:4.2, SY=NS?2.7:2.85; const scr=mesh(geo('plane',SW,SH),new THREE.MeshBasicMaterial({map:st,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),cx,SY,-ZD/2+0.32,scene); scr.renderOrder=2;
+  const SW=R.tv?4.8:NS?3.2:8.4, SH=R.tv?2.7:NS?1.6:4.2, SY=NS?2.7:2.85; const scr=mesh(geo('plane',SW,SH),new THREE.MeshBasicMaterial({map:st,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),cx,SY,-ZD/2+0.32,scene); scr.renderOrder=2;
   box(SW+0.3,SH+0.3,0.08,NS?'#3a2a1e':'#0a0a0a',cx,SY,-ZD/2+0.2,scene);
   room.screen={canvas:sc, ctx:sc.getContext('2d'), tex:st, last:-1};
   // ışık konileri
@@ -2481,6 +2481,69 @@ function mpPanel(){ if(!$('game').classList.contains('show')||$('gTitle').textCo
   B.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{ MP.ch&&MP.ch.send({type:'broadcast',event:'emote',payload:{id:MP.id,e:b.dataset.e}}); toast(b.dataset.e+' gönderildi'); });
   B.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{ const p=MP.peers[b.dataset.go]; if(!p) return; closeSheets(); if(p.h==='street'){ goStreet(); setTimeout(()=>PLAYER.obj.position.set(p.tx+1,0,p.tz+1),80); } else if(HOUSES.find(h=>h.id===p.h)){ setHouse(p.h); goFloor(p.f||0); } }); }
 if(MP.pendingCode&&MP.cfg.url) setTimeout(()=>{ mpJoin(MP.pendingCode); MP.pendingCode=null; },4000);
+
+/* ===== 077: odandaki TV → YouTube (ekrana dokun, büyüsün, izle) ===== */
+const TV={vid:null,title:'',thumb:null,img:null,wasPlaying:false,mini:false,res:[]};
+const isTVRoom=r=>r&&(r.g==='salon'||r.g==='benimoda');
+['salon','benimoda'].forEach(k=>{ if(ROOMS[k]) ROOMS[k].tv=true; });
+(function(){ const st=document.createElement('style'); st.textContent=`
+#tv{position:fixed;z-index:40;background:#000;border-radius:14px;overflow:hidden;display:none;flex-direction:column;box-shadow:0 20px 60px #000c;transition:all .45s cubic-bezier(.2,.8,.2,1)}
+#tv.full{left:0!important;top:0!important;width:100vw!important;height:100%!important;border-radius:0}
+#tv.mini{left:auto!important;right:10px!important;top:auto!important;bottom:calc(env(safe-area-inset-bottom) + 170px)!important;width:56vw!important;height:calc(56vw*0.5625 + 34px)!important;max-width:340px;max-height:225px}
+#tvBar{display:flex;gap:6px;align-items:center;padding:calc(env(safe-area-inset-top) + 6px) 8px 6px;background:#111;color:#fff;font:600 14px system-ui}
+#tv.mini #tvBar{padding:4px 6px} #tvBar b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#tvBar button{border:0;border-radius:10px;background:#ffffff1a;color:#fff;min-width:36px;height:32px;font-size:15px}
+#tvBody{flex:1;overflow:auto;color:#fff} #tvBody iframe{width:100%;height:100%;border:0;display:block}
+#tvSearch{display:flex;gap:6px;padding:10px} #tvSearch input{flex:1;padding:11px;border-radius:12px;border:1px solid #333;background:#1a1a1a;color:#fff;font-size:16px}
+#tvSearch button{border:0;border-radius:12px;background:#ff0033;color:#fff;padding:0 14px;font-weight:700}
+.tvi{display:flex;gap:10px;padding:8px 10px;align-items:center;border:0;background:none;color:#fff;width:100%;text-align:left}
+.tvi img{width:120px;height:68px;object-fit:cover;border-radius:8px;background:#222;flex:none} .tvi small{display:block;color:#aaa}`; document.head.appendChild(st);
+  const d=document.createElement('div'); d.id='tv'; d.setAttribute('role','dialog'); d.setAttribute('aria-label','YouTube TV');
+  d.innerHTML='<div id="tvBar"><b id="tvT">📺 YouTube</b><button id="tvList" type="button" aria-label="Video ara">🔎</button><button id="tvMin" type="button" aria-label="Küçült">▢</button><button id="tvX" type="button" aria-label="Kapat">✕</button></div><div id="tvBody"></div>'; document.body.appendChild(d);
+  $('tvX').onclick=()=>tvClose(); $('tvMin').onclick=()=>tvMini(); $('tvList').onclick=()=>{ tvFull(); tvSearchUI(); };
+  d.addEventListener('click',e=>{ if(d.classList.contains('mini')&&!e.target.closest('button')) tvFull(); }); })();
+function tvScreenRect(){ const r=WORLD&&WORLD.rooms.find(isTVRoom); if(!r) return null; const v=new THREE.Vector3(r.cx,2.7,-ZD/2+0.3), a=v.clone().add(new THREE.Vector3(-2.4,1.35,0)).project(camera), b=v.clone().add(new THREE.Vector3(2.4,-1.35,0)).project(camera);
+  if(a.z>1||b.z>1) return null; const W=innerWidth,H=innerHeight; return {l:(a.x*.5+.5)*W,t:(-a.y*.5+.5)*H,r:(b.x*.5+.5)*W,b:(-b.y*.5+.5)*H}; }
+function openTV(){ closeSheets(); const el=$('tv'); el.classList.remove('full','mini'); const R=tvScreenRect()||{l:innerWidth*.3,t:innerHeight*.3,r:innerWidth*.7,b:innerHeight*.42};
+  Object.assign(el.style,{display:'flex',left:R.l+'px',top:R.t+'px',width:Math.max(40,R.r-R.l)+'px',height:Math.max(24,R.b-R.t)+'px'}); requestAnimationFrame(()=>requestAnimationFrame(()=>tvFull()));
+  if(TV.vid&&$('tvBody').querySelector('iframe')) return; if(TV.vid) tvPlay(TV.vid,TV.title,TV.thumb); else tvSearchUI(); }
+function tvFull(){ const el=$('tv'); el.classList.remove('mini'); el.classList.add('full'); TV.mini=false; }
+function tvMini(){ if(!TV.vid){ tvClose(); return; } const el=$('tv'); el.classList.remove('full'); el.classList.add('mini'); TV.mini=true; }
+function tvClose(){ const el=$('tv'); const R=tvScreenRect(); el.classList.remove('full','mini'); if(R) Object.assign(el.style,{left:R.l+'px',top:R.t+'px',width:(R.r-R.l)+'px',height:(R.b-R.t)+'px'});
+  setTimeout(()=>{ el.style.display='none'; $('tvBody').innerHTML=''; },450); if(TV.wasPlaying&&!Music.playing){ Music.toggle(); TV.wasPlaying=false; } }
+const PIPED=['https://pipedapi.kavin.rocks','https://pipedapi.adminforge.de','https://api.piped.private.coffee'], INVID=['https://inv.nadeko.net','https://invidious.nerdvpn.de','https://yewtu.be'];
+const tmo=(p,ms)=>Promise.race([p,new Promise((_,r)=>setTimeout(()=>r(new Error('zaman aşımı')),ms))]);
+async function ytSearch(q){ for(const b of PIPED){ try{ const j=await tmo(fetch(b+'/search?filter=videos&q='+encodeURIComponent(q)).then(r=>r.json()),6000); const it=(j.items||[]).filter(x=>x.url&&x.url.includes('v=')); if(it.length) return it.slice(0,15).map(x=>({id:x.url.split('v=')[1].slice(0,11),t:x.title,c:x.uploaderName||'',th:x.thumbnail,d:x.duration})); }catch(e){} }
+  for(const b of INVID){ try{ const j=await tmo(fetch(b+'/api/v1/search?type=video&q='+encodeURIComponent(q)).then(r=>r.json()),6000); if(Array.isArray(j)&&j.length) return j.slice(0,15).map(x=>({id:x.videoId,t:x.title,c:x.author,th:'https://i.ytimg.com/vi/'+x.videoId+'/mqdefault.jpg',d:x.lengthSeconds})); }catch(e){} } return null; }
+function ytId(s){ const m=String(s).match(/(?:youtu\.be\/|v=|shorts\/|embed\/|live\/)([\w-]{11})/); return m?m[1]:(/^[\w-]{11}$/.test(s.trim())?s.trim():null); }
+function tvSearchUI(q){ const B=$('tvBody'); $('tvT').textContent='📺 YouTube';
+  B.innerHTML=`<div id="tvSearch"><input id="tvQ" type="search" placeholder="YouTube'da ara ya da link yapıştır" aria-label="YouTube'da ara"><button id="tvGo" type="button">Ara</button></div><div id="tvRes"></div>`;
+  const go=async()=>{ const v=$('tvQ').value.trim(); if(!v) return; const id=ytId(v); if(id){ tvPlay(id,'YouTube videosu','https://i.ytimg.com/vi/'+id+'/mqdefault.jpg'); return; }
+    const R=$('tvRes'); R.innerHTML='<p style="padding:10px">Aranıyor…</p>'; const res=await ytSearch(v);
+    if(!res){ R.innerHTML=`<p style="padding:10px">Arama şu an yapılamadı. YouTube'da bulup linkini kopyala, yukarıya yapıştır.</p><button class="tvi" id="tvYT" type="button" style="color:#ff4d6d">▶ YouTube'da "${esc(v)}" ara</button>`; $('tvYT').onclick=()=>window.open('https://www.youtube.com/results?search_query='+encodeURIComponent(v),'_blank'); return; }
+    R.innerHTML=''; res.forEach(x=>{ const b=document.createElement('button'); b.className='tvi'; b.type='button'; const dur=x.d>0?Math.floor(x.d/60)+':'+String(x.d%60).padStart(2,'0'):''; b.innerHTML=`<img src="${esc(x.th||'')}" alt="" loading="lazy"><span><b>${esc(x.t)}</b><small>${esc(x.c)}${dur?' · '+dur:''}</small></span>`; b.onclick=()=>tvPlay(x.id,x.t,x.th); R.appendChild(b); }); };
+  $('tvGo').onclick=go; $('tvQ').onkeydown=e=>{ if(e.key==='Enter') go(); }; if(q){ $('tvQ').value=q; go(); }
+  else { const a=Music.cur!=null?firstArtist(Music.cur):null; const sug=[a&&a+' canlı',a&&a+' klip','lofi hip hop','Barış Manço','konser'].filter(Boolean); const R=$('tvRes'); R.innerHTML='<p style="padding:0 10px;color:#aaa">Öneriler</p>'; sug.forEach(s=>{ const b=document.createElement('button'); b.className='tvi'; b.type='button'; b.textContent='🔎 '+s; b.onclick=()=>{ $('tvQ').value=s; go(); }; R.appendChild(b); }); } }
+function tvPlay(id,title,thumb){ TV.vid=id; TV.title=title||'YouTube'; TV.thumb=thumb; $('tvT').textContent='📺 '+TV.title;
+  if(Music.playing){ TV.wasPlaying=true; Music.toggle(); toast('🎵 Müzik video için duraklatıldı'); }
+  $('tvBody').innerHTML=`<iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1&rel=0&modestbranding=1" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen title="${esc(TV.title)}"></iframe>`;
+  TV.img=new Image(); TV.img.crossOrigin='anonymous'; TV.img.onerror=()=>{ TV.img=null; }; TV.img.src='https://i.ytimg.com/vi/'+id+'/hqdefault.jpg'; const r=WORLD&&WORLD.rooms.find(isTVRoom); if(r) r.screen.last=-1; }
+/* 3D ekranda: video kapağı + başlık */
+drawScreen=(function(prev){ return function(room,t){ if(!isTVRoom(room)) return prev(room,t); const s=room.screen, x=s.ctx; x.setTransform(1,0,0,1,0,0); const W=s.canvas.width, H=s.canvas.height;
+  x.fillStyle='#0b0b0f'; x.fillRect(0,0,W,H);
+  if(TV.vid&&TV.img&&TV.img.complete&&TV.img.naturalWidth){ try{ x.drawImage(TV.img,0,0,W,H); }catch(e){} x.fillStyle='#0009'; x.fillRect(0,H-70,W,70); x.fillStyle='#fff'; x.font='700 30px sans-serif'; x.fillText(TV.title.slice(0,40),20,H-26); }
+  else { x.fillStyle='#ff0033'; x.beginPath(); x.roundRect?x.roundRect(W/2-70,H/2-60,140,98,24):x.rect(W/2-70,H/2-60,140,98); x.fill(); x.fillStyle='#fff'; x.beginPath(); x.moveTo(W/2-20,H/2-34); x.lineTo(W/2+30,H/2-11); x.lineTo(W/2-20,H/2+12); x.fill();
+    x.font='700 34px sans-serif'; x.textAlign='center'; x.fillText(TV.vid?TV.title.slice(0,36):'Dokun, YouTube aç',W/2,H/2+90); x.textAlign='left'; }
+  s.tex.needsUpdate=true; }; })(drawScreen);
+/* etkileşim: TV'nin önünde buton + ekrana doğrudan dokunma */
+buildFloor=(function(prev){ return function(fi){ const W=prev(fi); const r=W.rooms.find(isTVRoom); if(r) W.inter.push({type:'tv',x:r.cx,z:-ZD/2+4,r:2.6,label:'📺 YouTube aç'}); return W; }; })(buildFloor);
+interact=(function(prev){ return function(it){ if(it.type==='tv'){ openTV(); return; } prev(it); }; })(interact);
+(function(){ const rc=new THREE.Raycaster(), v=new THREE.Vector2(); let dn=null; const cv=renderer.domElement;
+  cv.addEventListener('pointerdown',e=>{ dn={x:e.clientX,y:e.clientY,t:performance.now()}; },true);
+  cv.addEventListener('pointerup',e=>{ if(!dn||MODE!=='floor'||!WORLD) return; const tap=Math.hypot(e.clientX-dn.x,e.clientY-dn.y)<10&&performance.now()-dn.t<400; dn=null; if(!tap) return; const r=WORLD.rooms.find(isTVRoom); if(!r) return;
+    v.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1); rc.setFromCamera(v,camera); const p=new THREE.Plane(new THREE.Vector3(0,0,1),ZD/2-0.32), hit=new THREE.Vector3(); if(!rc.ray.intersectPlane(p,hit)) return;
+    if(Math.abs(hit.x-r.cx)<2.6&&Math.abs(hit.y-2.7)<1.5&&Math.hypot(PLAYER.obj.position.x-r.cx,PLAYER.obj.position.z)<14){ openTV(); setTimeout(()=>{ PLAYER.goal=null; },0); } },true); })();
+goStreet=(function(prev){ return function(){ if(TV.vid&&!TV.mini&&$('tv').style.display!=='none') tvMini(); prev(); }; })(goStreet);
 
 /* ================= OYUNCU, KONTROLLER, ARAYÜZ, DÖNGÜ ================= */
 const PLAYER={obj:null, vel:{x:0,z:0}, goal:null, sitting:false, dance:false, holding:null};
