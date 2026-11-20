@@ -3129,6 +3129,66 @@ mapPlaces=(function(prev){ return function(){ return prev().concat([{x:CIN.x,z:2
 $('bMenu').addEventListener('click',()=>setTimeout(()=>{ const o=$('gOpts'); if(!o||$('gTitle').textContent!=='Menü') return; const mk=(t,fn)=>{ const b=document.createElement('button'); b.className='opt'; b.type='button'; b.textContent=t; b.onclick=fn; return b; };
   o.insertBefore(mk('🎬 Açık hava sineması',()=>goCinema()),o.children[1]||null); o.appendChild(mk(SOC.aiOn?'🤖 Yapay zekâ sohbet: Açık':'🤖 Yapay zekâ sohbet: Kapalı',()=>{ SOC.aiOn=!SOC.aiOn; saveLife(); toast(SOC.aiOn?'NPC\'ler yapay zekâyla konuşacak':'NPC\'ler hazır cevaplarla konuşacak'); closeSheets(); })); },0));
 
+/* ===== 084: gerçek sohbet altyapısı — zengin kişilik, hafıza, sohbet geçmişi, sağlam yapay zekâ hattı ===== */
+SOC.facts=SOC.facts||{}; SOC.town=SOC.town||[]; let AI_SRC=LS('ai.src')||''; let AI_BUSY=false;
+const pickH=(id,k,arr)=>arr[Math.floor(hash(id+k)*arr.length)%arr.length];
+function backstory(n){ const id=n.id, age=19+Math.floor(hash(id+'age')*40);
+  const town=pickH(id,'t',['Kadıköy','Beşiktaş','Trabzon','İzmir Karşıyaka','Ankara Çankaya','Diyarbakır','Eskişehir','Mersin','Rize','Bursa','Antakya','Samsun','Kars','Berlin (gurbetçi)','Üsküdar','Bodrum']);
+  const fam=pickH(id,'f',['annesiyle yaşıyor, babası vefat etti','iki kız kardeşi var, en büyük o','yeni evlendi, eşi hemşire','bekâr, kedisi Pamuk\'la yaşıyor','boşanmış, 7 yaşında bir oğlu var','ailesi memlekette, İstanbul\'da yalnız','üç ev arkadaşıyla yaşıyor','dedesiyle yaşıyor, dedesi eski bir saz ustası']);
+  const hobby=pickH(id,'h',['plak toplamak','balık tutmak','gece fotoğrafçılığı','satranç','bisiklet','yemek yapmak','eski motor tamir etmek','şiir yazmak','koşu','bağlama çalmak','futbol (koyu Fenerbahçeli)','futbol (koyu Galatasaraylı)','futbol (koyu Beşiktaşlı)','bitki yetiştirmek','çizgi roman','dağ yürüyüşü']);
+  const worry=pickH(id,'w',['kira çok arttı, taşınmayı düşünüyor','işinden sıkıldı, kendi işini kurmak istiyor','eski sevgilisini unutamıyor','annesinin sağlığı için endişeli','borcu var, biraz gergin','uykusuzluk çekiyor','yakın arkadaşıyla küs','yurt dışına gitmeyi düşünüyor ama karar veremiyor','yeni bir şarkı yazıyor ama bitiremiyor','kilo vermeye çalışıyor']);
+  const dream=pickH(id,'d',['kendi plak dükkânını açmak','Japonya\'ya gitmek','bir grup kurup sahneye çıkmak','deniz kenarında bir ev','sevdiği şefin restoranında çalışmak','bir belgesel çekmek','bir gün Barış Manço\'nun evini ziyaret etmek','emekli olup köyüne dönmek']);
+  const style=pickH(id,'s',['samimi İstanbul ağzı, "abi/kanka" der','kibar ve biraz resmi','Karadeniz şivesiyle, hızlı konuşur','entel, kitaplardan alıntı yapar','alaycı ve iğneleyici ama iyi kalpli','neşeli, bol gülen','az konuşan, kısa ve net','dertli, biraz melankolik','heyecanlı, konudan konuya atlayan']);
+  return {age,town,fam,hobby,worry,dream,style}; }
+function relLines(n){ if(typeof NREL==='undefined') return ''; const out=[]; for(const k in NREL){ const [a,b]=k.split('|'); if(a!==n.id&&b!==n.id) continue; const o=rosterNPC(a===n.id?b:a); if(!o) continue; const v=NREL[k]; if(Math.abs(v)<30) continue; out.push(o.nr[0]+' ('+(v>=60?'çok yakın arkadaşın':v>=30?'arkadaşın':v<=-50?'düşmanın':'pek sevmediğin biri')+')'); } return out.slice(0,4).join(', '); }
+function npcPersona2(n){ const B=backstory(n), p=prof(n), f=rel(n), here=ROOMS[n.room&&n.room.g]||{}, song=Music.cur!=null?`"${T[Music.cur][1]}" — ${firstArtist(Music.cur)}`:'şu an müzik çalmıyor';
+  const top=Object.entries(artistCount).sort((a,b)=>b[1]-a[1]).slice(0,10).map(a=>a[0]).join(', ');
+  const ev=(typeof EVENTS!=='undefined'?EVENTS:[]).slice(-6).map(e=>typeof e==='string'?e:e.t||e.text||'').filter(Boolean).join(' / ');
+  const c=upcomingConcerts(1)[0]; const facts=(SOC.facts[n.id]||[]).join('; '), town=SOC.town.slice(-6).join('; ');
+  return `Sen bir rol yapma oyununda gerçek bir insanı canlandırıyorsun. Oyunun adı "Müzik Sokağı": İstanbul'da müzik barları, kahveciler, açık hava sineması olan canlı bir sokak.
+KİMLİĞİN: Adın ${n.name}, ${B.age} yaşındasın, ${B.town}lusun. Mesleğin/rolün: ${n.role}. Ailen: ${B.fam}. Hobin: ${B.hobby}. Şu sıralar kafandaki dert: ${B.worry}. Hayalin: ${B.dream}. Konuşma tarzın: ${B.style}.${isTourist(n)?' Turistsin; Türkçen bozuk, arada İngilizce kelimeler kullanırsın.':''}
+MÜZİK ZEVKİN: ${p.likes.map(g=>NAMES[g]).join(' ve ')} seversin${n.fav?', en sevdiğin sanatçı '+n.fav:''}. ${NAMES[p.dis]||'Bazı tarzları'} pek sevmezsin. ${p.humor>0.5?'Espri yapmayı seversin.':'Ciddi birisin.'} ${p.romantic>0.5?'Romantik birisin.':''}
+ÇEVREN: ${relLines(n)||'sokaktaki insanları tanırsın'}. Şu an ${here.room||'sokakta'} bulunuyorsun. Saat ${new Date().toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}, hava ${WX.label}. Ortamda çalan: ${song}. Yakındaki konser: ${c?c.artist+' ('+c.when+', '+ROOMS[c.room].room+')':'yok'}. Sokakta son olanlar: ${ev||'sakin bir gün'}.
+KARŞINDAKİ: Yiğit. Sokakta takılan, müzik tutkunu biri. Dinlediği sanatçılar: ${top}. Aranızdaki ilişki: ${relLabel(n)} (yakınlık ${Math.round(f.aff||0)}/100${f.status==='sevgili'?', sevgilisin':''}). Onun hakkında bildiklerin: ${facts||'henüz pek bir şey bilmiyorsun'}. Sokakta onun hakkında duyulanlar: ${town||'-'}.
+NASIL KONUŞACAKSIN:
+- Gerçek bir insan gibi, doğal ve akıcı Türkçe konuş. 1-3 cümle; gerekirse biraz daha uzun.
+- Önce Yiğit'in söylediğini ANLA ve ona DOĞRUDAN, mantıklı cevap ver. Soru sorduysa sorusunu cevapla. Sohbetin önceki kısmını hatırla, tutarlı ol.
+- Bilmediğin bir şeyi uydurma; bir insan gibi "bilmiyorum, emin değilim" diyebilirsin. Gerçek dünya bilgin (müzik, futbol, şehirler, tarih) normal bir insanınki kadar.
+- Kendi hayatından, dertlerinden, planlarından bahset; fikir belirt, katılmadığında itiraz et. Sohbeti canlı tutmak için bazen sen de soru sor ama her mesajda değil.
+- Ruh hâlin ilişkiye göre değişsin: yabancıya mesafeli, arkadaşa sıcak. Kabalığa kırıl. Asla yapay zekâ, oyun karakteri ya da model olduğunu söyleme; sen ${n.name}'sin.
+- Liste, başlık, emoji yağmuru yok. En fazla 1 emoji.`; }
+
+/* sağlam istek hattı: Supabase npc-chat → doğrudan Pollinations → nazik bekleme */
+async function aiChat(n,text){ const H=(SOC.ai[n.id]=SOC.ai[n.id]||[]); const body={system:npcPersona2(n),history:H.slice(-14),message:text};
+  try{ const r=await tmo(fetch(MP.cfg.url+'/functions/v1/npc-chat',{method:'POST',headers:{'Content-Type':'application/json',apikey:MP.cfg.key},body:JSON.stringify(body)}),30000); if(r.ok){ const j=await r.json(); if(j.reply){ AI_SRC=j.src||''; LS('ai.src',AI_SRC); return j; } } }catch(e){}
+  try{ const r=await tmo(fetch('https://text.pollinations.ai/openai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'openai',messages:[{role:'system',content:body.system+'\nSadece karakterin söyleyeceği sözü yaz.'}].concat(body.history,[{role:'user',content:text}]),temperature:0.9,private:true,referrer:'muzik-sokagi'})}),25000); if(r.ok){ const j=await r.json(); const t=j.choices[0].message.content.replace(/\[aff:[^\]]*\]/g,'').trim(); if(t) return {reply:t,aff:1,remember:'',src:'pollinations-client'}; } }catch(e){}
+  return null; }
+
+/* sohbet geçmişi arayüzü */
+(function(){ const st=document.createElement('style'); st.textContent=`#chatLog{max-height:34vh;overflow:auto;display:flex;flex-direction:column;gap:6px;padding:6px 2px 8px;-webkit-overflow-scrolling:touch}
+#chatLog .b{max-width:82%;padding:8px 12px;border-radius:16px;font-size:15px;line-height:1.35;word-wrap:break-word}
+#chatLog .n{align-self:flex-start;background:#ffffff14;border-bottom-left-radius:4px} #chatLog .y{align-self:flex-end;background:#2f80ed;color:#fff;border-bottom-right-radius:4px}
+#chatLog .typing{opacity:.7;letter-spacing:3px} #chatLog .sys{align-self:center;font-size:12px;color:var(--muted);background:none}`; document.head.appendChild(st);
+  const fr=$('freeRow'); const d=document.createElement('div'); d.id='chatLog'; d.setAttribute('aria-live','polite'); fr.before(d); })();
+function chatRender(n,typing){ const L=$('chatLog'); if(!L) return; const H=SOC.ai[n.id]||[]; L.innerHTML=H.slice(-12).map(m=>`<div class="b ${m.role==='user'?'y':'n'}">${esc(m.content)}</div>`).join('')+(typing?`<div class="b n typing">${esc(n.name)} yazıyor •••</div>`:''); L.scrollTop=1e9; }
+openTalk=(function(prev){ return function(n){ prev(n); if(n&&n.id){ chatRender(n); const H=SOC.ai[n.id]||[]; const last=H.length?H[H.length-1]:null; if(last&&last.role==='assistant'&&last.content) setTimeout(()=>{},0); if(SOC.aiOn&&/^gemini/.test(AI_SRC)&&!AI_BUSY) aiGreet(n); } }; })(openTalk);
+async function aiGreet(n){ const M=SOC.mem&&SOC.mem[n.id]; const since=M&&M.t?Math.round((Date.now()-M.t)/60000):null; AI_BUSY=true; chatRender(n,true);
+  const j=await aiChat(n,`(Sahne notu: Yiğit yanına geldi${since!=null?', en son '+(since<60?since+' dakika':Math.round(since/60)+' saat')+' önce konuşmuştunuz':', ilk kez konuşuyorsunuz'}. Ona o anki ruh hâline ve aranızdaki ilişkiye uygun, doğal bir şekilde sen başla. Bu notu asla tekrar etme.)`); AI_BUSY=false;
+  if(j&&TALK===n){ const H=(SOC.ai[n.id]=SOC.ai[n.id]||[]); H.push({role:'assistant',content:j.reply}); SOC.ai[n.id]=H.slice(-20); talkLine(j.reply); saveLife(); } chatRender(n); }
+
+/* serbest yazı: her mesaj yapay zekâya; sırayla, yazıyor göstergesiyle */
+freeReply=function(n,text){ if(!SOC.aiOn){ return localReply(n,text); } const H=(SOC.ai[n.id]=SOC.ai[n.id]||[]); H.push({role:'user',content:text}); chatRender(n,true);
+  const run=async()=>{ while(AI_BUSY) await new Promise(r=>setTimeout(r,300)); AI_BUSY=true; const hist=H.slice(0,-1); const backup=SOC.ai[n.id]; SOC.ai[n.id]=hist; const j=await aiChat(n,text); SOC.ai[n.id]=backup; AI_BUSY=false;
+    if(!j){ H.push({role:'assistant',content:'…'}); H.pop(); chatRender(n); talkLine('(Bağlantı zayıf, cevap gelmedi. Bir daha yaz.)'); return; }
+    let reply=j.reply.replace(new RegExp('^'+n.name+':\\s*'),'').replace(/^["“]|["”]$/g,'').trim(); H.push({role:'assistant',content:reply}); SOC.ai[n.id]=H.slice(-20); aff(n,j.aff||0);
+    if(j.remember&&j.remember.length>3){ const F=(SOC.facts[n.id]=SOC.facts[n.id]||[]); if(!F.includes(j.remember)) F.push(j.remember); SOC.facts[n.id]=F.slice(-12); SOC.town.push(n.name+' anlatıyor: '+j.remember); SOC.town=SOC.town.slice(-15); }
+    const M=memOf(n); M.t=Date.now(); M.you=M.you.concat(text).slice(-3); saveLife();
+    if(TALK===n){ talkLine(reply); chatRender(n); const art=Object.keys(artistCount).find(a=>a.length>3&&text.toLocaleLowerCase('tr').includes(a.toLocaleLowerCase('tr'))); if(art) opts([['🎵 '+art+' aç',()=>{ const ids=T.map((x,i)=>i).filter(i=>firstArtist(i)===art); MusicAPI.call('POST','/player/play',{index:rnd(ids),room:n.room.g}); talkMenu(); },true],['Sohbete devam',()=>talkMenu()]]); }
+    else say(n,reply.slice(0,90),5); };
+  run(); };
+/* yapay zekâ kapalıyken eski yerel cevaplar */
+function localReply(n,text){ talkLine(rnd(['Hmm, anladım.','Öyle mi? Anlat bakalım.','Haklısın galiba.'])); aff(n,1); }
+
 </script>
 <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
 </body>
