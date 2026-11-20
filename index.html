@@ -2407,7 +2407,8 @@ openMap=(function(prev){ return function(){ prev(); const box=$('mapBox'), cv=$(
 }; })(openMap);
 
 /* ===== 076: arkadaşlarla oyna (Supabase Realtime: broadcast + presence, tablo gerekmez) ===== */
-const MP={cfg:LS('mp.cfg')||{url:'',key:''}, name:LS('mp.name')||'Yiğit', id:LS('mp.id')||('p'+Math.random().toString(36).slice(2,9)), code:null, ch:null, sb:null, peers:{}, sendT:0, last:'', follow:true, log:[]};
+const SB_DEF={url:'https://zvjuvbvpxahzzevskivt.supabase.co',key:'sb_publishable_rbA3uD-LSJAM9O8SE726zQ_n37gLu8A'};
+const MP={cfg:(LS('mp.cfg')&&LS('mp.cfg').url)?LS('mp.cfg'):SB_DEF, name:LS('mp.name')||'Yiğit', id:LS('mp.id')||('p'+Math.random().toString(36).slice(2,9)), code:null, ch:null, sb:null, peers:{}, sendT:0, last:'', follow:true, log:[]};
 LS('mp.id',MP.id); const MPHOOKS=[];
 /* davet linki: #oda=KOD&u=URL&k=ANAHTAR */
 (function(){ const h=new URLSearchParams(location.hash.slice(1)); if(h.get('u')&&h.get('k')){ MP.cfg={url:h.get('u'),key:h.get('k')}; LS('mp.cfg',MP.cfg); } if(h.get('oda')) MP.pendingCode=h.get('oda').toUpperCase(); if(h.toString()) history.replaceState(null,'',location.pathname); })();
@@ -2554,8 +2555,8 @@ function ytParse(html){ const m=html.match(/var ytInitialData\s*=\s*(\{.+?\});\s
   const out=[]; (function walk(o){ if(!o||typeof o!=='object'||out.length>=15) return; if(o.videoRenderer&&o.videoRenderer.videoId){ const v=o.videoRenderer; const len=(v.lengthText&&v.lengthText.simpleText||'').split(':').reduce((a,b)=>a*60+(+b||0),0);
       out.push({id:v.videoId,t:(v.title&&v.title.runs&&v.title.runs[0].text)||'',c:(v.ownerText&&v.ownerText.runs&&v.ownerText.runs[0].text)||'',th:'https://i.ytimg.com/vi/'+v.videoId+'/mqdefault.jpg',d:len}); return; }
     for(const k in o) walk(o[k]); })(d); return out.length?out:null; }
-const ytSources=q=>{ const S=[]; const c=typeof MP!=='undefined'&&MP.cfg&&MP.cfg.url;
-  if(c) S.push(['sb',async()=>{ const r=await fetch(MP.cfg.url+'/functions/v1/yt-search?q='+encodeURIComponent(q),{headers:{Authorization:'Bearer '+MP.cfg.key,apikey:MP.cfg.key}}); if(!r.ok) throw 0; const j=await r.json(); return j.items&&j.items.length?j.items:null; }]);
+const ytSources=q=>{ const S=[]; const c=typeof MP!=='undefined'&&MP.cfg&&MP.cfg.url; YT_OK=c?'sb':YT_OK;
+  if(c) S.push(['sb',async()=>{ const r=await fetch(MP.cfg.url+'/functions/v1/yt-search?q='+encodeURIComponent(q),{headers:{apikey:MP.cfg.key}}); if(!r.ok) throw 0; const j=await r.json(); return j.items&&j.items.length?j.items:null; }]);
   YT_PIPED.forEach(b=>S.push(['p:'+b,async()=>{ const j=await fetch(b+'/search?filter=videos&q='+encodeURIComponent(q)).then(r=>{ if(!r.ok) throw 0; return r.json(); }); const it=(j.items||[]).filter(x=>x.url&&x.url.includes('v=')); return it.length?it.slice(0,15).map(x=>({id:x.url.split('v=')[1].slice(0,11),t:x.title,c:x.uploaderName||'',th:x.thumbnail,d:x.duration})):null; }]));
   YT_PROXY.forEach((px,i)=>S.push(['x:'+i,async()=>{ const h=await fetch(px('https://www.youtube.com/results?search_query='+encodeURIComponent(q)+'&hl=tr&gl=TR')).then(r=>{ if(!r.ok) throw 0; return r.text(); }); return ytParse(h); }]));
   if(YT_OK){ const k=S.findIndex(s=>s[0]===YT_OK); if(k>0) S.unshift(S.splice(k,1)[0]); } return S; };
