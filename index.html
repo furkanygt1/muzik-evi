@@ -2957,6 +2957,16 @@ $('oSp').onclick=()=>{ if(!SP.on) SP.login(); }; $('oWake').onclick=()=>{ locati
 setTimeout(()=>{ $('load').remove(); },60);
 requestAnimationFrame(frame);
 
+/* ===== 080: oyundan çıkmadan izle — engelli videoda otomatik başka sürüm, API yoksa düz oynatıcı ===== */
+TV.tried=new Set(); TV.plain=false;
+ytSearch=(function(prev){ return async function(q){ const r=await prev(q); if(r){ TV.res=r; TV.tried=new Set(); TV.q=q; } return r; }; })(ytSearch);
+tvPlay=(function(prev){ return function(id,title,thumb){ TV.tried.add(id); TV.plain=false; prev(id,title,thumb); }; })(tvPlay);
+ytFail=(function(prev){ return function(id,why){ const code=+((why.match(/kod (\d+)/)||[])[1]||0);
+  if([100,101,150,152,153].includes(code)){ const next=(TV.res||[]).find(x=>!TV.tried.has(x.id)); if(next&&TV.tried.size<8){ toast('🔁 Bu sürüm engelli, başka sürüm deneniyor…'); tvPlay(next.id,next.t,next.th); return; }
+    if(TV.q&&!TV.altQ){ TV.altQ=true; toast('🔁 Canlı/sözlü sürümler aranıyor…'); ytSearch(TV.q+' lyrics canlı').then(r=>{ TV.altQ=false; const n=r&&r.find(x=>!TV.tried.has(x.id)); if(n) tvPlay(n.id,n.t,n.th); else prev(id,why); }); return; } }
+  if(!code&&!TV.plain){ TV.plain=true; $('tvBody').innerHTML=`<iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" style="width:100%;height:100%;border:0" title="${esc(TV.title)}"></iframe>`; return; }
+  prev(id,why); }; })(ytFail);
+
 </script>
 <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
 </body>
