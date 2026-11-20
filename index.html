@@ -54,7 +54,7 @@ button{font-family:var(--body)}
 #np .ib{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:#ffffff10;color:var(--ink);font-size:15px;cursor:pointer;flex:none}
 #npStatus{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top) + 118px);text-align:center;z-index:10;font:500 11px var(--mono);color:#fff;text-shadow:0 1px 3px #000;pointer-events:none}
 #embed{position:fixed;left:10px;right:10px;top:calc(env(safe-area-inset-top) + 136px);z-index:10;display:none;max-width:520px;margin:0 auto;border-radius:12px;overflow:hidden}
-#embed.show{display:block}
+#embed.show{display:block;position:fixed;left:-9999px;top:0;width:300px;height:80px;opacity:0;pointer-events:none}
 /* alt sayfa (sheet) */
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:15;max-height:82%;display:none;flex-direction:column;background:linear-gradient(#141a29f7,#0d111bf9);border-top:1px solid var(--line);border-radius:22px 22px 0 0;
   padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -10px 40px #000a;max-width:640px;margin:0 auto}
@@ -140,7 +140,7 @@ button{font-family:var(--body)}
 #rbar{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top) + 150px);z-index:9;justify-content:center;padding:0 10px}
 #rbar .achip{background:var(--glass);backdrop-filter:blur(8px)}
 body.chill .top,body.chill #rbar,body.chill #joy,body.chill #act,body.chill #bubbles,body.chill #upnext{display:none!important}
-body.chill #np{top:auto;bottom:calc(env(safe-area-inset-bottom) + 20px)}
+
 .top{gap:5px}.top .btn{padding:8px 9px;font-size:14px}.top .chip{padding:8px 10px}
 #bHome,#bLift{display:none}
 #load{position:fixed;inset:0;z-index:40;display:grid;place-items:center;background:var(--bg);font:800 22px var(--display)}
@@ -1281,7 +1281,7 @@ function NPCfollowJump(r){ WORLD.npcs.forEach(n=>{ if(n.follow){ n.person.positi
 /* ===== KAYIT: çıkarken ve düzenli aralıklarla ===== */
 function saveAll(){ try{ save(); if(MODE==='floor'&&PLAYER.obj){ const p=PLAYER.obj.position; localStorage.setItem('muzikEvi.place',JSON.stringify({house:CURHOUSE,street:CURFLOOR==null,fi:CURFLOOR,x:p.x,z:p.z,cur:Music.cur,room:Music.room,dj:Music.dj?Music.dj.id:null})); } }catch(e){} }
 addEventListener('pagehide',saveAll); document.addEventListener('visibilitychange',()=>{ if(document.hidden) saveAll(); }); setInterval(saveAll,15000);
-function resume(){ try{ const s=JSON.parse(localStorage.getItem('muzikEvi.place')||'null'); if(!s) return false; if(s.house) setHouse(s.house); if(s.street){ goStreet(); PLAYER.obj.position.set(s.x,0,s.z); $('home').classList.remove('show'); return true; } if(s.fi==null) return false;
+function resume(){ try{ const s=JSON.parse(localStorage.getItem('muzikEvi.place')||'null'); if(!s) return false; if(s.house&&(String(s.house).startsWith('npc:')||!HOUSES.find(h=>h.id===s.house))){ s.street=true; s.x=0; s.z=4; s.house=null; } if(s.house) setHouse(s.house); if(s.street){ goStreet(); PLAYER.obj.position.set(s.x,0,s.z); $('home').classList.remove('show'); return true; } if(s.fi==null) return false;
   enterFloorNow(s.fi); PLAYER.obj.position.set(s.x,0,s.z); if(s.cur!=null){ Music.room=s.room; Music.showTrack(s.cur); Music.status('Kaldığın yerden: ▶ ile devam et'); $('npToggle').textContent='▶'; Music.resumeIdx=s.cur; }
   if(s.dj){ const n=WORLD.npcs.find(n=>n.id===s.dj); if(n){ Music.dj=n; } } return true; }catch(e){ return false; } }
 
@@ -1476,7 +1476,7 @@ function buildStreet(){
 function buildStandAt(room,x,z){ const R=room.R; const S=R.stand; const sg=group(x,0,z,scene); box(2.4,1,1,shade(S.color,-0.25),0,0.5,0,sg); for(let k=0;k<4;k++) box(0.6,0.08,1.4,k%2?'#fff':S.color,-0.9+k*0.6,2.4,0,sg); for(const px of [-1.1,1.1]) cyl(0.05,0.05,2.4,'#ddd',px,1.2,-0.5,sg,6);
   const t=signTex(S.name,S.sub,'#111',S.color,640,170); mesh(geo('plane',2.4,0.64),new THREE.MeshBasicMaterial({map:t}),0,1.9,0.52,sg);
   WORLD.colliders.push([x-1.3,x+1.3,z-0.6,z+0.6]); WORLD.inter.push({type:'stand', x, z:z+1.6, r:2, label:S.name, room:room.g}); }
-function goStreet(){ closeSheets(); standUp(); TRANS=null; $('fx').style.display='none'; MODE='floor'; CURFLOOR=null; buildStreet(); makePlayer(); PLAYER.obj.position.set(HOUSES.find(h=>h.id===CURHOUSE).x,0,-2.5); PLAYER.obj.rotation.y=0; CAM.yaw=0; freezeStatic(); setPlayUI(true); $('rbar').innerHTML=''; $('home').classList.add('show'); setTimeout(()=>$('home').classList.remove('show'),6000); document.documentElement.style.setProperty('--rc','#ffd23f'); }
+function goStreet(){ closeSheets(); standUp(); TRANS=null; $('fx').style.display='none'; MODE='floor'; CURFLOOR=null; buildStreet(); makePlayer(); PLAYER.obj.position.set((HOUSES.find(h=>h.id===CURHOUSE)||(String(CURHOUSE).startsWith('npc:')&&{x:HOME_X(CURHOUSE)})||HOUSES[0]).x,0,(String(CURHOUSE).startsWith('npc:')?24:((HOUSES.find(h=>h.id===CURHOUSE)||{}).south?10.5:-2.5))); PLAYER.obj.rotation.y=0; CAM.yaw=0; freezeStatic(); setPlayUI(true); $('rbar').innerHTML=''; $('home').classList.add('show'); setTimeout(()=>$('home').classList.remove('show'),6000); document.documentElement.style.setProperty('--rc','#ffd23f'); }
 giveItem=(function(prev){ return function(n,it){ prev(n,it); aff(n,8); logEvent('Yiğit, '+n.name+'\'e '+it[1]+' ısmarladı'); }; })(giveItem);
 
 /* ================= NPC'LER ================= */
@@ -1923,6 +1923,171 @@ fillQueue=(function(prev){ return function(){ const c=CONCERT(); if(concertNow()
 npcTravel=(function(prev){ return function(dt){ prev(dt); msgTick(dt); partyTick(); wxTick(dt); concertTick(dt); }; })(npcTravel);
 setTimeout(badge,500);
 
+/* ===== ŞEHİR: park, NPC evleri, mekânlar, işletme, DJ'lik, plak koleksiyonu, vardiya, ev (salon+yatak odası), turistler, serbest cevap ===== */
+/* ---------- yeni eşyalar ---------- */
+buildProp=(function(prev){ return function(p,x,z,R,room,k){ const g=group(x,0,z,scene); let col=0.7;
+  switch(p){
+  case 'bed': box(2.2,0.45,3,'#6b3a1e',0,0.22,0,g); box(2.1,0.25,2.9,'#f4efe6',0,0.55,0,g); box(2.1,0.3,1.2,R.acc,0,0.62,0.7,g); box(0.8,0.2,0.5,'#fff',-0.5,0.75,-1.1,g); box(0.8,0.2,0.5,'#fff',0.5,0.75,-1.1,g); box(2.2,1.2,0.15,'#5a3a1e',0,0.8,-1.5,g); col=1.4; break;
+  case 'wardrobe': box(1.8,2.4,0.7,'#7a4d2c',0,1.2,0,g); box(0.04,2.2,0.02,'#3a2416',0,1.2,0.36,g); col=0.9; break;
+  case 'nightstand': box(0.6,0.6,0.5,'#7a4d2c',0,0.3,0,g); cyl(0.12,0.18,0.35,'#fff1c1',0,0.8,0,g,8,{emissive:'#fff1c1',ei:.6}); col=0.4; break;
+  case 'diningTable': box(2,0.08,1.1,'#8b5a2b',0,0.78,0,g); for(const a of [-0.9,0.9]) for(const b of [-0.45,0.45]) box(0.07,0.78,0.07,'#5a3a1e',a,0.39,b,g); for(let i=0;i<3;i++) cyl(0.12,0.1,0.05,'#fff',-0.6+i*0.6,0.84,0,g,8); col=1.1; break;
+  case 'espresso': box(1.6,1,0.7,'#3a2416',0,0.5,0,g); box(0.6,0.5,0.4,'#c0c0c0',0,1.25,0,g); cyl(0.05,0.05,0.2,'#111',-0.15,1.0,0.2,g,6); col=0.9; break;
+  case 'tattooChair': box(0.7,0.5,1.8,'#111',0,0.5,0,g); box(0.7,0.6,0.15,'#111',0,0.95,-0.85,g); cyl(0.04,0.04,1.4,'#888',0.7,0.7,0.3,g,5); sph(0.1,'#ff4d00',0.7,1.45,0.3,g,6,{emissive:'#ff4d00',ei:.8}); col=1; break;
+  case 'flashWall': for(let i=0;i<8;i++) box(0.45,0.55,0.03,['#fff','#ffd23f','#ff4d00'][i%3],-1.2+(i%4)*0.8,2.0+(i>>2)*0.7,0,g); col=0; break;
+  case 'fountain': cyl(1.8,2,0.5,'#b8b0a0',0,0.25,0,g,16); cyl(1.6,1.6,0.05,'#4cc9f0',0,0.48,0,g,16,{emissive:'#4cc9f0',ei:.3}); cyl(0.25,0.35,1.4,'#b8b0a0',0,1,0,g,10); const w=sph(0.35,'#8be9ff',0,1.9,0,g,8,{emissive:'#8be9ff',ei:.5,opacity:.7}); addFloat(w,'pulse',{room:{g:'park'}}); col=2; break;
+  default: scene.remove(g); return prev(p,x,z,R,room,k);
+  }
+  if(col>0) WORLD.colliders.push([x-col,x+col,z-col,z+col]); }; })(buildProp);
+
+/* ---------- mekânlar, ev odaları ---------- */
+mkRoom('salon','altin',{room:'Salon', genreName:'Bütün kütüphanen', props:[], band:['acoustic'], stand:ROOMS.benimoda.stand}); byGenre.salon=byGenre.benimoda;
+mkRoom('yatak','folk',{room:'Yatak Odası', genreName:'Sakin şarkılar', wallTex:'woodPanels', wall:'#c9a27a', floorTex:'rug', props:['bed','wardrobe','nightstand','plants'], band:[], stand:{name:'Komodin', sub:'Gece atıştırmalığı', color:'#c9a27a', items:[['🥛','Ilık süt','Ballı','₺ 0'],['🍵','Papatya çayı','Uyku öncesi','₺ 0'],['🍪','Kurabiye','Bir tane','₺ 0'],['💧','Su','Bardakta','₺ 0']]}});
+byGenre.yatak=byGenre.jazz.concat(byGenre.trindie,byGenre.klasik,byGenre.folk);
+const senin=HOUSES.find(h=>h.id==='senin'); senin.floors[0].rooms=['salon','yatak']; senin.floors[0].name='Senin Evin · Salon & Yatak Odası'; senin.floors[0].intro='home';
+mkRoom('kahveci','trindie',{room:'Ayşe\'nin Kahvecisi', props:['espresso','plants','bookshelf','cat'], band:['acoustic'], stand:{name:'Kahve Barı', sub:'Taze kavrum', color:'#c05a19', items:[['☕','Türk kahvesi','Köpüklü','₺ 70'],['🧋','Iced latte','Yulaf sütlü','₺ 110'],['🍰','Cheesecake','Frambuazlı','₺ 130'],['🥐','Poğaça','Peynirli','₺ 40']]}});
+mkRoom('restoran','jazz',{room:'Nevzat Usta\'nın Restoranı', props:['diningTable','diningTable','grandLamp','bistroTable'], band:['piano','dbass'], stand:{name:'Mutfak', sub:'Ev yemekleri', color:'#e09f3e', items:[['🍲','Mercimek çorbası','Limonlu','₺ 90'],['🍛','Hünkâr beğendi','Közlenmiş patlıcan','₺ 320'],['🥙','İskender','Tereyağlı','₺ 380'],['🍮','Künefe','Kaymaklı','₺ 160']]}});
+mkRoom('dovmeci','metal',{room:'Kara Mürekkep Dövme', props:['tattooChair','flashWall','chains','fireBarrel'], band:['guitar','drums'], stand:{name:'Dövme Menüsü', sub:'Kalıcı hatıralar', color:'#ff4d00', items:[['🎵','Nota dövmesi','Bileğe','₺ 400'],['🌙','Ay dövmesi','Omuza','₺ 600'],['💿','Plak dövmesi','Kola','₺ 750'],['❤','Kalp dövmesi','Parmağa','₺ 300']]}});
+Object.assign(NPC_ROLES,{ kahveci:[['Ayşe','Kahvecinin sahibi'],['Bora','Barista'],['Leyla','Laptopla çalışan yazar']], restoran:[['Nevzat Usta','Restoran sahibi, aşçı'],['Gül Hanım','Garson'],['Tarık','Yemek eleştirmeni']], dovmeci:[['Kaan','Dövme ustası, mekân sahibi'],['Mira','Piercing sanatçısı'],['Arda','İlk dövmesini yaptıracak']] });
+/* turistler ve yabancılar */
+NPC_ROLES.street=NPC_ROLES.street.concat([['Emma','Alman turist, Türkçe öğreniyor'],['Kenji','Japon fotoğrafçı'],['Sofía','İspanyol gezgin'],['Liam','İrlandalı sokak müzisyeni'],['Amara','Nijeryalı DJ'],['Olga','Rus resim öğrencisi']]);
+['street'].forEach(g=>NPC_ROLES[g].forEach((nr,k)=>{ if(!ROSTER.find(r=>r.id===g+'_'+k)) ROSTER.push({id:g+'_'+k,home:g,k,nr}); }));
+['kahveci','restoran','dovmeci'].forEach(g=>NPC_ROLES[g].forEach((nr,k)=>ROSTER.push({id:g+'_'+k,home:g,k,nr})));
+const isTourist=n=>/turist|gezgin|Japon|İrlandalı|Nijeryalı|Rus /.test(n.role);
+const VENUES=[
+ {id:'v_kahve', name:"Ayşe'nin Kahvecisi", color:'#c05a19', x:44, room:'kahveci', owner:'kahveci_0'},
+ {id:'v_resto', name:"Nevzat Usta'nın Restoranı", color:'#e09f3e', x:58, room:'restoran', owner:'restoran_0'},
+ {id:'v_dovme', name:'Kara Mürekkep Dövme', color:'#ff4d00', x:72, room:'dovmeci', owner:'dovmeci_0'},
+];
+VENUES.forEach(v=>HOUSES.push({id:v.id, name:v.name, color:v.color, x:v.x, south:true, floors:[{id:v.id+'0', n:'0', name:v.name, short:v.name, color:v.color, intro:v.room, rooms:[v.room]}]}));
+
+/* ---------- kendi işletmen ---------- */
+const BIZT={kahveci:['Kahveci','trindie',30,'☕'], bar:['Bar','trrock',45,'🍺'], restoran:['Restoran','jazz',60,'🍽️'], plak:['Plakçı','anadolu',35,'💿']};
+SOC.biz=SOC.biz||null; // {type, level, last}
+function bizRate(){ return SOC.biz?BIZT[SOC.biz.type][2]*SOC.biz.level:0; }
+function bizPending(){ if(!SOC.biz) return 0; return Math.floor(Math.min(8*60,(Date.now()-SOC.biz.last)/60000)*bizRate()/6); }
+function ensureBizRoom(){ if(!SOC.biz) return; const t=BIZT[SOC.biz.type]; mkRoom('benimmekan',t[1],{room:'Senin '+t[0]+'ın', props:['plants','barCounter','neonWord','bistroTable'], stand:{name:t[0]+' tezgâhı', sub:'Seviye '+SOC.biz.level, color:'#f3c25a', items:ROOMS[t[1]].stand.items}});
+  NPC_ROLES.benimmekan=[['Müşteri Ali','Müdavim'],['Müşteri Eda','İlk kez gelen'],['Müşteri Can','Mahalleli']]; if(!ROSTER.find(r=>r.id==='benimmekan_0')) NPC_ROLES.benimmekan.forEach((nr,k)=>ROSTER.push({id:'benimmekan_'+k,home:'benimmekan',k,nr}));
+  if(!HOUSES.find(h=>h.id==='mybiz')) HOUSES.push({id:'mybiz', name:'Senin İşletmen', color:'#f3c25a', x:86, south:true, floors:[{id:'mb0', n:'0', name:'Senin '+t[0]+'ın', short:'Senin '+t[0]+'ın', color:'#f3c25a', intro:{kahveci:'kahveci',restoran:'restoran',bar:'kilim',plak:'curtain'}[SOC.biz.type], rooms:['benimmekan']}]}); }
+ensureBizRoom();
+
+/* ---------- NPC evleri (arkadaş olduklarının evine haritadan git) ---------- */
+function homeStyle(id){ const r=rosterNPC(id); const n={id, g:r.home, fav:null}; const p=prof(n); const base=p.likes[0]; const R0=ROOMS[base]; return {base, color:R0.acc, name:r.nr[0]}; }
+function goNpcHome(id){ const st=homeStyle(id); const key='home_'+id;
+  mkRoom(key,st.base,{room:st.name+'\'in Salonu', props:ROOMS[st.base].props.slice(0,3).concat(['diningTable']), band:[], stand:{name:st.name+'\'in mutfağı', sub:'Ev ikramı', color:st.color, items:[['🍵','Çay','Ev yapımı','₺ 0'],['🍪','Kurabiye','Kendi yaptı','₺ 0'],['🥤','Limonata','Buzlu','₺ 0'],['🍰','Kek','Taze','₺ 0']]}});
+  mkRoom(key+'_y','folk',{room:st.name+'\'in Odası', wall:shade(st.color,-0.2), props:['bed','wardrobe','nightstand','posterWall'], band:[], stand:ROOMS.yatak.stand});
+  CURHOUSE='npc:'+id; FLOORS.length=0; FLOORS.push({id:'nh', n:'⌂', name:st.name+'\'in Evi', short:st.name+'\'in Evi', color:st.color, intro:'home', rooms:[key,key+'_y']});
+  NPCLOC[id]=key; saveSocial(); closeSheets(); goFloor(0); }
+const HOME_LOTS=[-36,-25,-14,30,41,52,63,74];
+function HOME_X(h){ const i=homeOwners().findIndex(r=>r.id===String(h).slice(4)); return i>=0?HOME_LOTS[i]:0; }
+function homeOwners(){ return ROSTER.filter(r=>FRIEND[r.id]&&(FRIEND[r.id].aff>=40||FRIEND[r.id].status==='sevgili'||SOC.contacts.includes(r.id))).sort((a,b)=>(FRIEND[b.id].aff||0)-(FRIEND[a.id].aff||0)).slice(0,HOME_LOTS.length); }
+
+/* ---------- sokak: güney tarafı (park, mekânlar, NPC evleri) ---------- */
+function southFacade(x,z,w,h,color,title,sub,inter){ const g=group(x,0,z,scene); box(w,h,6,shade(color,-0.35),0,h/2,0,g); box(w+0.4,0.4,6.4,shade(color,-0.5),0,h,0,g);
+  for(let k=0;k<Math.floor(w/4);k++) box(1.8,1.4,0.1,'#ffe9a8',-w/2+2+k*4,2.6,-3.05,g,{emissive:color,ei:.35}); box(2.4,2.8,0.15,'#1a1a1a',0,1.4,-3.05,g);
+  const t=signTex(title,sub,'#111',color,640,170); const s=mesh(geo('plane',Math.min(w-1,8),2),new THREE.MeshBasicMaterial({map:t}),0,h-1.2,-3.12,g); s.rotation.y=Math.PI;
+  box(w*0.6,0.12,2,color,0,3.2,-4,g); WORLD.colliders.push([x-w/2-0.2,x+w/2+0.2,z-3.2,z+3.2]); WORLD.inter.push(Object.assign({x, z:z-4.6, r:2.2},inter)); }
+let SOUTHLIST=null;
+buildStreet=(function(prev){ return function(){
+  const W=prev(); W.maxZ=34; W.maxX=92;
+  // kuzey dışındaki evleri yeniden konumla: güneydekileri kuzey sırasından kaldır (prev zaten hepsini kuzeye çizdi; güneydekileri ayrıca güneye çiziyoruz)
+  const grass=new THREE.Mesh(geo('plane',46,14),mat('#3f7a3a')); grass.rotation.x=-Math.PI/2; grass.position.set(4,0.02,20); scene.add(grass);
+  const path=new THREE.Mesh(geo('plane',46,2),surfaceMat('cobble','#6b5b4b','#ffd23f',20,1)); path.rotation.x=-Math.PI/2; path.position.set(4,0.03,20); scene.add(path);
+  buildProp('fountain',4,20,ROOMS.street,STREET_ROOM,0);
+  for(const [x,z] of [[-14,15],[-8,25],[16,15],[22,25],[-17,22],[25,18]]){ cyl(0.2,0.3,1.6,'#5a3a1e',x,0.8,z,scene,6); mesh(geo('ico',1.4,0),mat(['#2d6a4f','#40916c','#52b788'][Math.abs(x)%3]),x,2.6,z,scene); W.colliders.push([x-0.4,x+0.4,z-0.4,z+0.4]); }
+  [[-6,16],[14,16],[-6,24],[14,24]].forEach(([x,z])=>{ box(2.4,0.1,0.6,'#8b5a2b',x,0.5,z,scene); STREET_ROOM.seats.push({x:x-0.6,z,h:0.5,taken:null},{x:x+0.6,z,h:0.5,taken:null}); W.colliders.push([x-1.3,x+1.3,z-0.3,z+0.3]); });
+  for(let i=0;i<6;i++){ const d=sph(0.18,'#fff',4+Math.cos(i)*1.2,0.55,20+Math.sin(i)*1.2,scene,6); addFloat(d,'orbit',{cx:4,cy:0.55}); }
+  // mekânlar ve işletmen (güney)
+  (SOUTHLIST||HOUSES.filter(h=>h.south)).forEach(h=>southFacade(h.x,16,12,6,h.color,h.name,h.floors[0].rooms.map(r=>ROOMS[r].room).join(' · '),{type:'door',label:'Gir: '+h.name,house:h.id}));
+  if(!SOC.biz) [86].forEach(x=>southFacade(x,16,12,5,'#888','Kiralık Dükkân','Kendi işletmeni aç',{type:'lot',label:'🏪 Dükkânı kirala'}));
+  // NPC evleri (arka sıra)
+  const own=homeOwners(); HOME_LOTS.forEach((x,i)=>{ const r=own[i]; if(r){ const st=homeStyle(r.id); southFacade(x,29,9,5,st.color,st.name+'\'in Evi',NAMES[st.base]+' sever',{type:'npchome',label:'🏠 '+st.name+'\'in evine gir',npc:r.id}); }
+    else { const g=group(x,0,29,scene); box(9,4,6,'#4a4f5a',0,2,0,g); WORLD.colliders.push([x-4.6,x+4.6,25.8,32.2]); } });
+  // güney sokak lambaları
+  for(let x=-36;x<=90;x+=14){ cyl(0.08,0.1,4,'#333',x,2,12.4,scene,6); sph(0.3,'#ffe9a8',x,4.1,12.4,scene,8,{basic:true}); const h=mesh(geo('plane',2.2,2.2),glowMat('#ffcf8a'),x,4.1,12.4,scene); W.halos.push(h); }
+  return W; }; })(buildStreet);
+/* kuzey sırasına güneydeki mekânların çizilmemesi için */
+
+buildStreet=(function(prev){ return function(){ const south=HOUSES.filter(h=>h.south); SOUTHLIST=south; south.forEach(h=>HOUSES.splice(HOUSES.indexOf(h),1)); let W; try{ W=prev(); } finally { south.forEach(h=>HOUSES.push(h)); SOUTHLIST=null; } return W; }; })(buildStreet);
+
+/* ---------- etkileşimler ---------- */
+interact=(function(prev){ return function(it){
+  if(it.type==='npchome'){ goNpcHome(it.npc); return; }
+  if(it.type==='lot'){ openLot(); return; }
+  if(it.type==='door' && it.house && it.house.startsWith('v_')){ const v=VENUES.find(v=>v.id===it.house); if(v){ NPCLOC[v.owner]=v.room; } }
+  prev(it); }; })(interact);
+function openLot(){ closeSheets(); $('gTitle').textContent='🏪 Kiralık dükkân'; $('gBody').innerHTML='<p>Kendi mekânını aç. NPC\'ler gelir, harcar; sen yokken de kazanır (en fazla 8 saatlik birikim). Seviye yükselttikçe gelir artar.</p>';
+  $('gOpts').innerHTML=''; Object.entries(BIZT).forEach(([k,t])=>{ const b=document.createElement('button'); b.className='opt'; b.type='button'; b.textContent=`${t[3]} ${t[0]} aç · 800 🪙 · saatte ~${t[2]*10} 🪙`; b.onclick=()=>{ if(!spend(800)) return; SOC.biz={type:k, level:1, last:Date.now()}; saveLife(); ensureBizRoom(); logEvent('Yiğit sokakta kendi '+t[0].toLowerCase()+'ını açtı'); closeSheets(); toast(t[3]+' İşletmen açıldı! Telefonda "İşletme" bölümünden geliri topla.'); goStreet(); }; $('gOpts').appendChild(b); });
+  $('game').classList.add('show'); }
+
+/* ---------- DJ'lik: barlarda set çal, kalabalık zevkine göre bahşiş ---------- */
+let DJ=null;
+function startDJ(){ const r=currentRoom(); if(!r){ toast('DJ seti için bir mekân odasına gir'); return; } DJ={room:r, n:0, max:5, earned:0, waiting:true}; partyBar('<b>DJ seti başladı</b> · 5 şarkı seç, kalabalığı coştur',[['Şarkı seç',()=>openMusic(r.g)]]); openMusic(r.g); }
+function djReact(i){ const crowd=WORLD.npcs.filter(n=>n.room===DJ.room&&!n.band); let tip=0; const st={love:18,like:9,ok:3,hate:-4};
+  crowd.forEach(n=>{ const sv=Music.cur; Music.cur=i; const op=opinion(n); Music.cur=sv; tip+=st[op]; say(n,{love:'🔥🔥 Bu şarkı!',like:'👏 Güzel!',ok:'👍',hate:'👎 Bu ne ya…'}[op],3); if(op==='hate'&&Math.random()<0.4){ n.state='walk'; n.target={x:DJ.room.x0+1,z:0.4}; } else if(op!=='ok'){ n.state='toStage'; n.target={x:DJ.room.cx-3+Math.random()*6,z:-ZD/2+5.3}; n.timer=30; } });
+  tip=Math.max(0,tip)+5; DJ.earned+=tip; DJ.n++; earn(tip,'DJ bahşişi'); if(DJ.n>=DJ.max){ toast('🎧 Set bitti! Toplam '+DJ.earned+' 🪙'); logEvent(`Yiğit ${ROOMS[DJ.room.g].room}'da DJ'lik yaptı ve ${DJ.earned} 🪙 kazandı`); DJ=null; $('partyBar').style.display='none'; } else partyBar(`<b>DJ seti</b> ${DJ.n}/5 · kazanç ${DJ.earned} 🪙`,[['Sıradaki şarkı',()=>openMusic(DJ.room.g)]]); }
+pick=(function(prev){ return function(i){ if(DJ){ closeSheets(); MusicAPI.call('POST','/player/play',{index:i,room:DJ.room.g}); setTimeout(()=>DJ&&djReact(i),5000); return; } prev(i); }; })(pick);
+
+/* ---------- plak koleksiyonu: nadirlik, satış, takas ---------- */
+SOC.coll=SOC.coll||[];
+const RAR=[['Yaygın','⚪',15],['Nadir','🔵',60],['Efsanevi','🟡',200]];
+recTick=(function(prev){ return function(dt){ const before=QUEST.rec; prev(dt); if(QUEST.rec>before){ const r=Math.random(), lv=r<0.1?2:r<0.4?1:0; const i=Math.floor(Math.random()*T.length); SOC.coll.push({i,lv}); saveLife(); toast(`${RAR[lv][1]} ${RAR[lv][0]} plak: ${T[i][1]} — ${firstArtist(i)}`); } }; })(recTick);
+function inPlakci(){ const r=currentRoom(); return r&&(baseG(r.g)==='anadolu'&&/Plak/.test(r.R.room)); }
+
+/* ---------- vardiya: standda çalış ---------- */
+function startShift(g){ const S=ROOMS[g].stand; let k=0, ok=0, t0=0; const W=12;
+  const round=()=>{ if(k>=6){ const pay=ok*W+10; earn(pay,'Vardiya bitti ('+ok+'/6 doğru)'); closeSheets(); return; } const want=rnd(S.items); t0=performance.now();
+    $('gTitle').textContent=`💼 ${S.name} · sipariş ${k+1}/6`; $('gBody').innerHTML=`<div class="standsign">Müşteri: "${want[1]} alabilir miyim?"<small>4 saniye içinde doğru ürünü ver</small></div>`;
+    $('gOpts').innerHTML=''; S.items.slice().sort(()=>Math.random()-.5).forEach(it=>{ const b=document.createElement('button'); b.className='opt'; b.type='button'; b.textContent=it[0]+' '+it[1]; b.onclick=()=>{ if(it===want && performance.now()-t0<4000){ ok++; toast('✅ Doğru!'); } else toast('❌ '+(it===want?'Geç kaldın':'Yanlış ürün')); k++; round(); }; $('gOpts').appendChild(b); }); };
+  closeSheets(); $('game').classList.add('show'); round(); }
+openStand=(function(prev){ return function(g,giftTo){ prev(g,giftTo); if(giftTo) return; const b=document.createElement('button'); b.className='item'; b.type='button'; b.innerHTML='<span class="em">💼</span><span><b>Burada çalış (vardiya)</b><small>6 sipariş · doğru başına 12 🪙</small></span>'; b.onclick=()=>startShift(g); $('sMenu').appendChild(b);
+  if(g==='dovmeci') $('sMenu').querySelectorAll('.item').forEach((it,k)=>{ if(k<4) it.addEventListener('click',()=>{ STYLE.tattoo=true; try{localStorage.setItem('muzikEvi.style',JSON.stringify(STYLE));}catch(e){} setTimeout(()=>{ toast('🖋️ Dövmen yapıldı, kolunda!'); applyStyle(); },400); }); }); }; })(openStand);
+applyStyle=(function(prev){ return function(){ prev(); if(STYLE.tattoo&&PLAYER.obj){ const a=PLAYER.obj.userData.armL; box(0.16,0.12,0.17,'#1a1a2e',0,-0.35,0,a); } }; })(applyStyle);
+
+/* ---------- ev: salon & yatak odası; eşya yerleşimi oda bazlı ---------- */
+furnishRoom=function(room){ SOC.room.filter(it=>(it.r||'salon')===room.g||(room.g==='salon'&&it.r==='benimoda')).forEach(it=>{ const [sx,sz]=SLOTS[it.slot]; const x=room.x0+sx, z=sz; const S=SHOP.find(s=>s[0]===it.k); if(!S) return;
+  if(S[3]==='seat'){ const s=makeSeat(it.k,room.R.acc); s.g.position.set(x,0,z); scene.add(s.g); room.seats.push({x,z,h:s.h,taken:null}); }
+  else if(S[3]==='poster'){ const t=signTex(it.art||'Müzik','senin favorin','#111','#f3c25a',512,160); mesh(geo('plane',2.6,0.8),new THREE.MeshBasicMaterial({map:t}),room.x0+3+((it.slot*3)%12),3.3,-ZD/2+0.18,scene); }
+  else buildProp(it.k,x,z,room.R,room,0); }); };
+let SHOPROOM='salon';
+openShop=(function(prev){ return function(B,row){ B.insertAdjacentHTML('beforeend',`<div class="chips" style="padding:0 0 8px">${['salon','yatak'].map(r=>`<button class="achip${SHOPROOM===r?' on':''}" type="button" data-r="${r}">${ROOMS[r].room}</button>`).join('')}</div>`); B.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{ SHOPROOM=b.dataset.r; openPhone('oda'); }); prev(B,row); }; })(openShop);
+SOC.room.forEach(it=>{ if(!it.r) it.r='salon'; });
+const _push=SOC.room.push.bind(SOC.room); SOC.room.push=function(it){ it.r=SHOPROOM; it.slot=SLOTS.map((s,i)=>i).find(i=>!SOC.room.some(r=>r.r===SHOPROOM&&r.slot===i)); if(it.slot==null){ toast('Bu odada yer kalmadı'); return 0; } return _push(it); };
+interact=(function(prev){ return function(it){ if(it.type==='bed'){ setChill(true); Music.queue=[]; MusicAPI.call('POST','/player/play',{index:rnd(byGenre.yatak),room:'yatak'}); toast('😴 Uyku modu: sakin şarkılar, kısık ışık'); return; } prev(it); }; })(interact);
+buildFloor=(function(prev){ return function(fi){ const W=prev(fi); const y=W.rooms.find(r=>r.g==='yatak'); if(y) W.inter.push({type:'bed', x:y.x0+5, z:2.5, r:2, label:'🛏️ Uzan, sakin müzik dinle'}); return W; }; })(buildFloor);
+
+/* ---------- telefon: yeni uygulamalar ---------- */
+APPS.splice(5,0,['isletme','🏪 İşletme'],['koleksiyon','💿 Koleksiyon'],['is','💼 Kazan']);
+openPhone=(function(prev){ return function(app){ prev(app); const B=$('phBody'); const row=(html,btns)=>{ const d=document.createElement('div'); d.className='item'; d.style.cursor='default'; d.innerHTML=html; const w=document.createElement('div'); w.style.cssText='margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end'; (btns||[]).forEach(([t,fn,pri])=>{ const b=document.createElement('button'); b.type='button'; b.className='btn'+(pri?' pri':''); b.textContent=t; b.onclick=fn; w.appendChild(b); }); d.appendChild(w); B.appendChild(d); };
+  if(PHAPP==='isletme'){ B.innerHTML=''; if(!SOC.biz){ B.innerHTML='<p>Henüz işletmen yok. Sokağın güney ucundaki <b>Kiralık Dükkân</b>\'a git.</p>'; return; } const t=BIZT[SOC.biz.type];
+    row(`<span class="em">${t[3]}</span><span><b>Senin ${t[0]}ın · Seviye ${SOC.biz.level}</b><small>Saatte ~${bizRate()*10} 🪙 · birikmiş ${bizPending()} 🪙</small></span>`,[['Topla',()=>{ const p=bizPending(); SOC.biz.last=Date.now(); saveLife(); earn(p,'İşletme geliri'); openPhone('isletme'); },true]]);
+    if(SOC.biz.level<5) row(`<span class="em">⬆️</span><span><b>Seviye ${SOC.biz.level+1}'e yükselt</b><small>${SOC.biz.level*400} 🪙 · gelir artar</small></span>`,[['Yükselt',()=>{ if(!spend(SOC.biz.level*400)) return; SOC.biz.level++; saveLife(); ensureBizRoom(); openPhone('isletme'); }]]);
+    row('<span class="em">🏠</span><span><b>İşletmene git</b></span>',[['Git',()=>{ closeSheets(); goHouse('mybiz'); }]]); }
+  if(PHAPP==='koleksiyon'){ B.innerHTML=`<p>${SOC.coll.length} plak · ${inPlakci()?'Plakçıdasın, satabilirsin.':'Satmak için Plak & Kahve Evi\'ndeki Plakçı\'ya git. Hediye olarak NPC\'lere de verebilirsin.'}</p>`;
+    SOC.coll.map((c,k)=>({c,k})).sort((a,b)=>b.c.lv-a.c.lv).slice(0,40).forEach(({c,k})=>row(`<span class="em">${RAR[c.lv][1]}</span><span><b>${esc(T[c.i][1])}</b><small>${esc(firstArtist(c.i))} · ${RAR[c.lv][0]} · ${RAR[c.lv][2]} 🪙</small></span>`, inPlakci()?[['Sat',()=>{ SOC.coll.splice(k,1); saveLife(); earn(RAR[c.lv][2],'Plak satıldı'); openPhone('koleksiyon'); }]]:[['Çal',()=>{ MusicAPI.call('POST','/player/play',{index:c.i,room:hereKey()||G[T[c.i][6]]}); }]])); }
+  if(PHAPP==='is'){ B.innerHTML='<p>Para kazanmanın yolları — müzik dinlemek her zaman ücretsiz.</p>';
+    [['🎧','DJ seti çal','Barlarda ve mekânlarda 5 şarkılık set; beğenilen her şarkıya bahşiş',()=>{ closeSheets(); startDJ(); }],['💼','Vardiya','Herhangi bir standda "Burada çalış"',null],['💿','Plak avı ve satış','Kayıp plakları bul, nadirleri plakçıya sat',null],['🏪','İşletme','Kendi mekânını aç, sen yokken de kazansın',()=>openPhone('isletme')],['🎉','Parti kazan','Dinleme partisinde birinci ol: 150 🪙',()=>openPhone('parti')],['📋','Günlük görevler','Her gün yenilenir',()=>{ openQuests(); }],['🎵','Dinlerken kazan','Her 15 sn müzik: 10 🪙',null]].forEach(([e,t,s,fn])=>row(`<span class="em">${e}</span><span><b>${t}</b><small>${s}</small></span>`,fn?[['Aç',fn]]:[])); }
+  if(PHAPP==='harita'){ const own=homeOwners(); if(own.length) B.insertAdjacentHTML('beforeend','<p style="margin-top:10px"><b>Arkadaşlarının evleri</b></p>'); own.forEach(r=>row(`<span class="em">🏡</span><span><b>${r.nr[0]}'in Evi</b><small>${r.nr[1]}</small></span>`,[['Git',()=>goNpcHome(r.id)]])); }
+}; })(openPhone);
+
+/* ---------- serbest cevap: anahtar kelimeyle anlama ---------- */
+const POS=/güzel|harika|seviyorum|sevdim|süper|teşekkür|sağol|mükemmel|bayıl|iyi|tatlı|eğlenceli|katılıyorum|haklısın|evet/i, NEG=/kötü|sıkıcı|nefret|saçma|berbat|beğenmedim|sevmiyorum|hayır|istemem|sıkıldım/i, RUDE=/salak|aptal|gerizekalı|siktir|defol|mal |aşağılık|çirkin/i, FLIRT=/güzelsin|yakışıklı|tatlısın|❤|😍|aşkım|hoşlanıyorum|seni seviyorum|çıkalım/i, JOKE=/haha|😂|şaka|komik|espri/i;
+function freeReply(n,text){ const t=text.toLocaleLowerCase('tr'); let d=0, out='';
+  const art=Object.keys(artistCount).find(a=>a.length>3&&t.includes(a.toLocaleLowerCase('tr')));
+  if(RUDE.test(t)){ d=-12; out=rnd(['Bu çok kaba oldu.','Böyle konuşmana gerek yoktu.']); }
+  else if(FLIRT.test(t)){ const f=rel(n); if(prof(n).romantic>0.45&&f.aff>=25){ f.rom=Math.min(100,f.rom+8); d=5; out=rnd(['Oo… kızardım şimdi.','Bunu duymak çok hoş.']); } else { d=-2; out='Biraz erken değil mi?'; } }
+  else if(art){ const g=G[T[ART_IDX[art]][6]]; const p=prof(n); const like=n.fav===art?'love':p.likes.includes(g)?'like':p.dis===g?'hate':'ok'; d=like==='hate'?-1:3; out={love:`${art} mı?! En sevdiğim! Senin listende ${artistCount[art]} şarkısı var, bayıldım.`,like:`${art} iyi seçim, severim.`,ok:`${art}… fena değil.`,hate:`${art} pek bana göre değil açıkçası.`}[like]+(like!=='hate'?' Açalım mı?':''); if(like!=='hate'){ opts([['Aç',()=>{ const ids=T.map((x,i)=>i).filter(i=>firstArtist(i)===art); MusicAPI.call('POST','/player/play',{index:rnd(ids),room:n.room.g}); talkMenu(); },true],['Sonra',()=>talkMenu()]]); } }
+  else if(/\?$/.test(t.trim())){ if(/nerede|nereli/.test(t)) out=`Ben ${n.role.toLowerCase()}. Genelde ${ROOMS[n.g]?ROOMS[n.g].room:'sokak'} taraflarındayım.`; else if(/hava/.test(t)) out=`Bugün hava ${WX.label.toLowerCase()}, ${WX.mood.map(g=>NAMES[g]).join(' ya da ')} dinlemelik.`; else if(/konser/.test(t)){ const c=upcomingConcerts(1)[0]; out=`Sıradaki konser ${c.artist}, ${c.when}, ${ROOMS[c.room].room}.`; } else if(/sevgili|biri var/.test(t)) out=hasLover(n.id)?'Evet, biri var 😊':'Yok, bekliyorum…'; else if(/şarkı|müzik|dinle/.test(t)) out=`En çok ${NAMES[prof(n).likes[0]]} dinlerim${n.fav?', favorim '+n.fav:''}.`; else if(/nasılsın|naber/.test(t)) out=rnd(['İyiyim, sen?','Müzik varken hep iyiyim.']); else out=rnd(['Güzel soru… hiç düşünmemiştim.','Bilmiyorum, sence?']); d=1; }
+  else if(JOKE.test(t)){ d=prof(n).humor>0.5?6:1; out=prof(n).humor>0.5?'Hahaha, sen bir tanesin!':'Hı hı, komik.'; }
+  else if(POS.test(t)){ d=4; out=rnd(['Aynen öyle!','Seninle aynı fikirdeyim.','Ne güzel söyledin.']); }
+  else if(NEG.test(t)){ d=-2; out=rnd(['Hmm, öyle mi düşünüyorsun?','Anlıyorum ama katılmıyorum.']); }
+  else { d=1; out=rnd(['İlginç…','Devam et, dinliyorum.','Hmm, anladım.']); }
+  aff(n,d); talkLine(out); }
+document.querySelector('#talk .opts').insertAdjacentHTML('beforebegin','<div class="search" id="freeRow"><input id="freeIn" type="text" placeholder="Kendi cevabını yaz…" aria-label="Kendi cevabını yaz" maxlength="140"><button class="btn pri" id="freeGo" type="button">Gönder</button></div>');
+function sendFree(){ const v=$('freeIn').value.trim(); if(!v||!TALK) return; $('freeIn').value=''; freeReply(TALK,v); QUEST.talk++; saveQuest(); }
+$('freeGo').onclick=sendFree; $('freeIn').addEventListener('keydown',e=>{ if(e.key==='Enter') sendFree(); });
+/* turistler selamı İngilizce karışık verir */
+openTalk=(function(prev){ return function(n){ prev(n); if(isTourist(n)){ const s=$('tSay').textContent; setTimeout(()=>talkLine(rnd(['Hello! Merhaba! ','Hi there! Selam! ','Hey! Türkçem biraz kötü ama… '])+s),20); } }; })(openTalk);
+
 /* ================= OYUNCU, KONTROLLER, ARAYÜZ, DÖNGÜ ================= */
 const PLAYER={obj:null, vel:{x:0,z:0}, goal:null, sitting:false, dance:false, holding:null};
 const CAM={yaw:0, pitch:0.62, dist:9.5, homeYaw:0.5, homeAuto:true, fp:false, fpPitch:0};
@@ -2113,29 +2278,42 @@ function enterFloorNow(fi){
 /* kata özel giriş animasyonları (2D katman) */
 function drawTransition(C, VW, VH, tr, p){
   const rect=(x,y,w,h,c)=>{C.fillStyle=c;C.fillRect(x,y,w,h);}; const circ=(x,y,r,c)=>{C.fillStyle=c;C.beginPath();C.arc(x,y,r,0,7);C.fill();};
-  const text=(s,x,y,size,c,font)=>{C.fillStyle=c;C.font=(font||'800 ')+size+'px "Bricolage Grotesque",sans-serif';C.textAlign='center';C.fillText(s,x,y);};
+  const text=(s,x,y,size,c,font)=>{C.fillStyle=c;C.font=(font||'800 ')+size+'px "Bricolage Grotesque",sans-serif';const mw=C.measureText(s).width; if(mw>VW*0.9) C.font=(font||'800 ')+(size*VW*0.9/mw)+'px "Bricolage Grotesque",sans-serif';C.textAlign='center';C.fillText(s,x,y);};
   const line=(a,b,c,d,col,w)=>{C.strokeStyle=col;C.lineWidth=w||2;C.beginPath();C.moveTo(a,b);C.lineTo(c,d);C.stroke();};
   const f=FLOORS[tr.to], cx=VW/2, cy=VH/2, t=tr.t;
-  if(p<0.3){ const k=p/0.3; rect(0,0,VW,VH,'#20283a'); const dw=VW/2*Math.min(1,k*1.5); rect(0,0,dw,VH,'#8a93a6'); rect(VW-dw,0,dw,VH,'#8a93a6'); line(VW/2,0,VW/2,VH,'#5b6478',2);
+  const LIFT=FLOORS.length>1;
+  if(p<0.3&&LIFT){ const k=p/0.3; rect(0,0,VW,VH,'#20283a'); const dw=VW/2*Math.min(1,k*1.5); rect(0,0,dw,VH,'#8a93a6'); rect(VW-dw,0,dw,VH,'#8a93a6'); line(VW/2,0,VW/2,VH,'#5b6478',2);
     rect(cx-50,24,100,50,'#000'); text(k<.6?(tr.from==null?'G':FLOORS[tr.from].n):f.n,cx,62,32,'#ff5a3c'); return; }
-  const k=Math.min(1,(p-0.3)/0.55), e=1-Math.pow(1-k,3);
+  const k=Math.min(1,LIFT?(p-0.3)/0.55:p/0.8), e=1-Math.pow(1-k,3); const TT=(f.short||f.name).toLocaleUpperCase('tr'), SUB=f.rooms.map(r=>ROOMS[r]?ROOMS[r].room:'').filter(Boolean).join(' · ');
   if(f.intro==='neon'){ rect(0,0,VW,VH,'#07060b'); for(let i=0;i<8;i++){ const a=t*1.7+i; C.globalAlpha=.35; line(cx,VH,cx+Math.cos(a)*VW,VH-Math.abs(Math.sin(a))*VH,['#ff3d6e','#3de0ff','#b8ff3b'][i%3],3);} C.globalAlpha=1;
-    const fl=(Math.random()>.12||k>.6)?1:.2; C.shadowColor=f.color; C.shadowBlur=24*fl; text('YERALTI',cx,cy,48*e+1,fl>.5?f.color:'#3a1220'); C.shadowBlur=0; text('Hip-hop · Elektronik · Dünya',cx,cy+34,14,'#ffffffaa','600 ');
+    const fl=(Math.random()>.12||k>.6)?1:.2; C.shadowColor=f.color; C.shadowBlur=24*fl; text(TT,cx,cy,48*e+1,fl>.5?f.color:'#3a1220'); C.shadowBlur=0; text(SUB,cx,cy+34,14,'#ffffffaa','600 ');
   } else if(f.intro==='kilim'){ rect(0,0,VW,VH,'#2a140c'); const w=VW*e; C.save(); C.beginPath(); C.rect(cx-w/2,40,w,VH-80); C.clip();
     for(let x=0;x<VW;x+=40) for(let y=40;y<VH;y+=40){ C.fillStyle=((x+y)/40)%2?'#9e2a2b':'#7a1f20'; C.beginPath(); C.moveTo(x+20,y); C.lineTo(x+40,y+20); C.lineTo(x+20,y+40); C.lineTo(x,y+20); C.fill(); circ(x+20,y+20,4,'#e09f3e'); }
-    for(let x=0;x<VW;x+=24){ rect(x,40,12,14,'#335c67'); rect(x,VH-54,12,14,'#335c67'); } C.restore(); text('ANADOLU AVLUSU',cx,cy+10,40*e+1,'#fff3e0'); text('Halk · Sanat · Pop',cx,cy+38,14,'#fff3e0cc','600 ');
+    for(let x=0;x<VW;x+=24){ rect(x,40,12,14,'#335c67'); rect(x,VH-54,12,14,'#335c67'); } C.restore(); text(TT,cx,cy+10,40*e+1,'#fff3e0'); text(SUB,cx,cy+38,14,'#fff3e0cc','600 ');
   } else if(f.intro==='city'){ const g=C.createLinearGradient(0,0,0,VH); g.addColorStop(0,'#0b1a33'); g.addColorStop(1,'#3a2a5a'); C.fillStyle=g; C.fillRect(0,0,VW,VH);
     for(let i=0;i<24;i++){ const bw=24+(i*37)%30, bx=i*VW/22-10, bh=(60+(i*71)%140)*e; rect(bx,VH-bh,bw,bh,'#0a0f1c'); for(let wy=VH-bh+8;wy<VH-6;wy+=12) for(let wx=bx+4;wx<bx+bw-6;wx+=9) if(((wx*7+wy*3)|0)%5<2 && k>((wx+wy)%100)/140) rect(wx,wy,4,6,'#ffd27a'); }
-    circ(VW*0.8,70,18,'#f3d27a'); text('İSTANBUL SAHNESİ',cx,110,36,'#eaf6ff'); text('Türkçe rock · Indie · Anadolu rock',cx,136,14,'#ffffffbb','600 ');
+    circ(VW*0.8,70,18,'#f3d27a'); text(TT,cx,110,36,'#eaf6ff'); text(SUB,cx,136,14,'#ffffffbb','600 ');
   } else if(f.intro==='bolt'){ rect(0,0,VW,VH,'#0d0d10'); if(Math.sin(k*40)>.7&&k<.6) rect(0,0,VW,VH,'#ffffff33');
     C.strokeStyle='#ffd000'; C.lineWidth=5; C.beginPath(); let x=cx-20,y=0; C.moveTo(x,y); for(let i=0;i<6&&i<k*12;i++){ x+=(i%2?30:-24); y+=VH/7; C.lineTo(x,y);} C.stroke();
     for(let i=0;i<6;i++) line(0,cy+60+i*7,VW,cy+60+i*7+Math.sin(t*30+i)*3*(1-k),'#cfcfcf',1);
     rect(30,cy-40,70,120,'#222'); rect(VW-100,cy-40,70,120,'#222'); circ(65,cy+20,22,'#444'); circ(VW-65,cy+20,22,'#444');
-    text('ROCK & KÖKLER',cx,cy,44*e+1,'#ff6b35'); text('Klasik rock · Metal · Progresif · Blues · Folk',cx,cy+30,13,'#ffffffbb','600 ');
-  } else { rect(0,0,VW,VH,'#1a0508'); text('SALON',cx,cy,48,'#c9a227'); text('Alternatif · Retro pop · Jazz · Klasik',cx,cy+30,14,'#ffffffcc','600 ');
+    text(TT,cx,cy,44*e+1,'#ff6b35'); text(SUB,cx,cy+30,13,'#ffffffbb','600 ');
+  } else if(f.intro==='home'){ const g=C.createRadialGradient(cx,cy,10,cx,cy,VW*0.7); g.addColorStop(0,'#5a3a1e'); g.addColorStop(1,'#1a0f08'); C.fillStyle=g; C.fillRect(0,0,VW,VH);
+    rect(cx-60,cy-90,120,180,'#7a4d2c'); const dw=120*e; rect(cx-60,cy-90,dw,180,'#ffd98a'); circ(cx+40-dw*0.9,cy,5,'#e0b050'); circ(cx,cy-110,10+6*Math.sin(t*3),'#fff1c1');
+    text(TT,cx,cy+130,34*e+1,'#fff1c1'); text(SUB,cx,cy+156,13,'#ffffffbb','600 ');
+  } else if(f.intro==='kahveci'){ rect(0,0,VW,VH,'#2b1a10'); rect(cx-45,cy-10,90,70,'#f4efe6'); rect(cx+45,cy+5,18,30,'#f4efe6'); rect(cx-40,cy-6,80,14,'#6b3a1e');
+    C.globalAlpha=.6; for(let i=0;i<3;i++){ C.strokeStyle='#ffffff'; C.lineWidth=3; C.beginPath(); for(let y=0;y<80*e;y+=4) C.lineTo(cx-20+i*20+Math.sin(y/10+t*4+i)*6,cy-20-y); C.stroke(); } C.globalAlpha=1;
+    text(TT,cx,cy+110,32*e+1,'#f3c27a'); text(SUB,cx,cy+136,13,'#ffffffbb','600 ');
+  } else if(f.intro==='restoran'){ rect(0,0,VW,VH,'#3a0d0d'); for(let x=0;x<VW;x+=30) for(let y=0;y<VH;y+=30) if(((x+y)/30)%2) rect(x,y,30,30,'#ffffff10');
+    circ(cx,cy,70*e,'#f4efe6'); circ(cx,cy,52*e,'#e8e0d0'); rect(cx-100,cy-60,6,120,'#c0c0c0'); rect(cx+94,cy-60,6,120,'#c0c0c0'); circ(cx,cy-10,8,'#e09f3e');
+    text(TT,cx,cy+110,32*e+1,'#e09f3e'); text(SUB,cx,cy+136,13,'#ffffffbb','600 ');
+  } else if(f.intro==='dovmeci'){ rect(0,0,VW,VH,'#0a0a0a'); C.fillStyle='#ff4d00'; for(let i=0;i<9;i++){ const x=VW*(i+.5)/9, h=VH*e*(0.3+((i*37)%50)/100); C.fillRect(x-4,0,8,h); circ(x,h,9,'#ff4d00'); }
+    C.shadowColor='#ff4d00'; C.shadowBlur=20; text(TT,cx,cy+20,36*e+1,'#ffffff'); C.shadowBlur=0; text(SUB,cx,cy+48,13,'#ffffffbb','600 ');
+  } else { rect(0,0,VW,VH,'#1a0508'); text(TT,cx,cy,48,'#c9a227'); text(SUB,cx,cy+30,14,'#ffffffcc','600 ');
     const open=e*VW/2; for(let i=0;i<2;i++){ const xx=i?cx+open:0, ww=cx-open; const g=C.createLinearGradient(xx,0,xx+ww,0); g.addColorStop(0,'#8b0d1c'); g.addColorStop(.5,'#b3122a'); g.addColorStop(1,'#6d0a16'); C.fillStyle=g; C.fillRect(xx,0,ww,VH); for(let fx2=xx;fx2<xx+ww;fx2+=18) line(fx2,0,fx2,VH,'#00000033',3); }
     for(let i=0;i<5;i++) circ(cx-60+i*30,26,4,'#ffe8b0'); }
-  if(p>0.85){ const k2=(p-0.85)/0.15; const dw=VW/2*(1-k2); C.globalAlpha=1; rect(0,0,dw,VH,'#8a93a6'); rect(VW-dw,0,dw,VH,'#8a93a6'); C.globalAlpha=1-k2; }
+  if(p>0.85&&!LIFT){ C.globalAlpha=1; rect(0,0,VW,VH,'rgba(0,0,0,'+((p-0.85)/0.15)+')'); }
+  if(p>0.85&&LIFT){ const k2=(p-0.85)/0.15; const dw=VW/2*(1-k2); C.globalAlpha=1; rect(0,0,dw,VH,'#8a93a6'); rect(VW-dw,0,dw,VH,'#8a93a6'); C.globalAlpha=1-k2; }
 }
 
 /* ---------- etiketler ve baloncuklar ---------- */
