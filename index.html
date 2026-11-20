@@ -2601,6 +2601,28 @@ mpPanel=(function(prev){ return function(){ prev(); if(!MP.code||!$('mpLog')) re
   row.innerHTML=VC.on?`<button class="btn" type="button" id="vcM" style="flex:1">${VC.muted?'🔇 Mikrofon kapalı':'🎙️ Mikrofon açık'}</button><button class="btn" type="button" id="vcE">Sesliden çık</button>`:`<button class="btn pri" type="button" id="vcS" style="flex:1">🎙️ Sesli sohbete katıl</button>`;
   $('mpLog').before(row); if(VC.on){ $('vcM').onclick=()=>{ vcMute(); mpPanel(); }; $('vcE').onclick=vcStop; } else $('vcS').onclick=vcStart; }; })(mpPanel);
 
+/* ===== 079: YouTube — resmi oynatıcı API'si (hata algılama) + YouTube uygulaması/PiP yolu ===== */
+let YTAPI=null; function ytApi(){ return YTAPI||(YTAPI=new Promise((ok,no)=>{ if(window.YT&&YT.Player) return ok(); window.onYouTubeIframeAPIReady=ok; const s=document.createElement('script'); s.src='https://www.youtube.com/iframe_api'; s.onerror=()=>no(); document.head.appendChild(s); setTimeout(()=>no(),9000); })); }
+const ytApp=(id,q)=>window.open(id?'https://www.youtube.com/watch?v='+id:q?'https://www.youtube.com/results?search_query='+encodeURIComponent(q):'https://www.youtube.com/','_blank');
+function ytFail(id,why){ const B=$('tvBody'); B.innerHTML=`<div style="padding:18px;text-align:center"><p style="font-size:40px;margin:10px 0">📺</p><p><b>Bu video oyunun içinde oynatılamıyor</b><br><small style="color:#aaa">${why}</small></p>
+  <button class="tvi" type="button" id="ytA" style="justify-content:center;background:#ff0033;border-radius:12px;margin:14px 0;font-weight:700">▶ YouTube uygulamasında izle</button>
+  <p style="color:#aaa;font-size:13px;line-height:1.5">Premium'un varsa video açılınca ana ekrana kaydır: video küçük pencerede (resim içinde resim) oyunun üstünde oynamaya devam eder.</p><button class="tvi" type="button" id="ytB" style="justify-content:center">🔎 Başka video ara</button></div>`;
+  $('ytA').onclick=()=>ytApp(id); $('ytB').onclick=()=>tvSearchUI(); }
+tvPlay=function(id,title,thumb){ TV.vid=id; TV.title=title||'YouTube'; TV.thumb=thumb; $('tvT').textContent='📺 '+TV.title;
+  if(Music.playing){ TV.wasPlaying=true; Music.toggle(); toast('🎵 Müzik video için duraklatıldı'); }
+  const B=$('tvBody'); B.innerHTML='<div id="ytP" style="width:100%;height:calc(100% - 44px)"></div><button class="tvi" type="button" id="ytOpen" style="height:44px;justify-content:center;color:#ff4d6d">YouTube uygulamasında aç ↗ (Premium · reklamsız)</button>'; $('ytOpen').onclick=()=>ytApp(id);
+  let started=false; const guard=setTimeout(()=>{ if(!started&&TV.vid===id) ytFail(id,'Oynatıcı yanıt vermedi (ağ ya da YouTube engeli).'); },12000);
+  ytApi().then(()=>{ new YT.Player('ytP',{videoId:id,width:'100%',height:'100%',host:'https://www.youtube.com',playerVars:{autoplay:1,playsinline:1,rel:0,modestbranding:1,origin:location.origin},
+      events:{onReady:e=>{ try{ e.target.playVideo(); }catch(x){} }, onStateChange:e=>{ if(e.data===1||e.data===3){ started=true; clearTimeout(guard); } },
+        onError:e=>{ clearTimeout(guard); const m={2:'Geçersiz video.',5:'Tarayıcı bu videoyu oynatamıyor.',100:'Video bulunamadı ya da gizli.',101:'Video sahibi başka sitelerde oynatılmasına izin vermiyor.',150:'Video sahibi başka sitelerde oynatılmasına izin vermiyor.',152:'YouTube bu siteden oynatmayı engelledi.',153:'YouTube oynatıcı ayarı reddedildi.'}; ytFail(id,(m[e.data]||'Bilinmeyen hata')+' (kod '+e.data+')'); } } });
+      setTimeout(()=>{ const f=B.querySelector('iframe'); if(f){ f.setAttribute('referrerpolicy','strict-origin-when-cross-origin'); f.setAttribute('allow','autoplay; encrypted-media; picture-in-picture; fullscreen'); } },50); })
+    .catch(()=>{ clearTimeout(guard); ytFail(id,'YouTube oynatıcısı yüklenemedi.'); });
+  TV.img=new Image(); TV.img.crossOrigin='anonymous'; TV.img.onerror=()=>{ TV.img=null; }; TV.img.src='https://i.ytimg.com/vi/'+id+'/hqdefault.jpg'; const r=WORLD&&WORLD.rooms.find(isTVRoom); if(r) r.screen.last=-1; };
+/* arama ekranının en üstüne: YouTube uygulamasını aç (Premium hesabınla) */
+tvSearchUI=(function(prev){ return function(q){ prev(q); const R=$('tvSearch'); if(!R) return; const b=document.createElement('button'); b.className='tvi'; b.type='button'; b.style.cssText='margin:0 10px 6px;width:calc(100% - 20px);justify-content:center;background:#ff0033;border-radius:12px;font-weight:700';
+  b.textContent='▶ YouTube uygulamasını aç (Premium hesabın)'; b.onclick=()=>ytApp(null,$('tvQ').value.trim()); R.after(b);
+  const go=$('tvGo'), old=go.onclick; go.onclick=async()=>{ await old(); const res=$('tvRes'); if(res&&res.querySelector('#tvYT')){ res.querySelector('#tvYT').textContent='▶ YouTube uygulamasında "'+$('tvQ').value.trim()+'" ara'; } }; }; })(tvSearchUI);
+
 /* ================= OYUNCU, KONTROLLER, ARAYÜZ, DÖNGÜ ================= */
 const PLAYER={obj:null, vel:{x:0,z:0}, goal:null, sitting:false, dance:false, holding:null};
 const CAM={yaw:0, pitch:0.62, dist:9.5, homeYaw:0.5, homeAuto:true, fp:false, fpPitch:0};
