@@ -2967,6 +2967,13 @@ ytFail=(function(prev){ return function(id,why){ const code=+((why.match(/kod (\
   if(!code&&!TV.plain){ TV.plain=true; $('tvBody').innerHTML=`<iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" style="width:100%;height:100%;border:0" title="${esc(TV.title)}"></iframe>`; return; }
   prev(id,why); }; })(ytFail);
 
+/* ===== 081: arama başarısızsa net yönlendirme + çalan şarkının videosu (song.link) ===== */
+async function ytForTrack(i){ try{ const j=await tmo(fetch('https://api.song.link/v1-alpha.1/links?userCountry=TR&url='+encodeURIComponent('spotify:track:'+T[i][0])).then(r=>r.json()),8000); const u=j.linksByPlatform&&(j.linksByPlatform.youtube||j.linksByPlatform.youtubeMusic); const id=u&&ytId(u.url); return id||null; }catch(e){ return null; } }
+tvSearchUI=(function(prev){ return function(q){ prev(q); const R=$('tvRes');
+  if(Music.cur!=null&&!q&&R){ const b=document.createElement('button'); b.className='tvi'; b.type='button'; b.style.fontWeight='700'; b.textContent='🎵 Çalan şarkının videosu: '+T[Music.cur][1]; b.onclick=async()=>{ b.textContent='Aranıyor…'; const id=await ytForTrack(Music.cur); if(id) tvPlay(id,T[Music.cur][1]+' — '+firstArtist(Music.cur),'https://i.ytimg.com/vi/'+id+'/mqdefault.jpg'); else { $('tvQ').value=T[Music.cur][1]+' '+firstArtist(Music.cur); $('tvGo').click(); } }; R.prepend(b); }
+  const go=$('tvGo'), old=go.onclick; go.onclick=async()=>{ await old(); const r=$('tvRes'); if(r&&r.querySelector('#tvYT')){ const has=typeof MP!=='undefined'&&MP.cfg&&MP.cfg.url;
+    r.insertAdjacentHTML('afterbegin',`<div style="padding:10px 12px;margin:8px 10px;border-radius:12px;background:#1d1d1d;font-size:14px;line-height:1.5"><b>Aramayı kalıcı açmak için (1 kez, 2 dk):</b><br>${has?'':'1) ☰ → 👥 Arkadaşlarla oyna → Supabase URL ve anahtarını gir.<br>'}${has?'1':'2'}) Supabase → Edge Functions → Deploy a new function → <b>yt-search</b> adıyla <a href="https://github.com/furkanygt1/muzik-evi/blob/main/supabase/functions/yt-search/index.ts" target="_blank" style="color:#5ac8fa">bu kodu</a> yapıştır → Deploy. Ayarlardan "Verify JWT"yi kapat.</div>`); } }; $('tvQ').onkeydown=e=>{ if(e.key==='Enter') go.onclick(); }; }; })(tvSearchUI);
+
 </script>
 <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
 </body>

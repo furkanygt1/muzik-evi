@@ -5,7 +5,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const q = new URL(req.url).searchParams.get("q") || "";
   const html = await fetch("https://www.youtube.com/results?hl=tr&gl=TR&search_query=" + encodeURIComponent(q), {
-    headers: { "User-Agent": "Mozilla/5.0", "Accept-Language": "tr-TR,tr;q=0.9" } }).then((r) => r.text());
+    headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36", "Accept-Language": "tr-TR,tr;q=0.9", "Cookie": "CONSENT=YES+1; SOCS=CAI" } }).then((r) => r.text());
   const m = html.match(/var ytInitialData\s*=\s*(\{.+?\});\s*<\/script>/s);
   const items: unknown[] = [];
   if (m) {
