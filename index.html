@@ -746,7 +746,7 @@ function buildRoom(g,i,x0,f){
   W.colliders.push([cx-4.6,cx+4.6,-ZD/2,sz+1.9]); }
   // ekran
   const sc=document.createElement('canvas'); sc.width=768; sc.height=384; const st=new THREE.CanvasTexture(sc); st.encoding=THREE.sRGBEncoding; st.generateMipmaps=false; st.minFilter=THREE.LinearFilter; st.magFilter=THREE.LinearFilter;
-  const SW=R.tv?4.8:NS?3.2:8.4, SH=R.tv?2.7:NS?1.6:4.2, SY=NS?2.7:2.85; const scr=mesh(geo('plane',SW,SH),new THREE.MeshBasicMaterial({map:st,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),cx,SY,-ZD/2+0.32,scene); scr.renderOrder=2;
+  const SW=R.tv?7.2:NS?3.2:8.4, SH=R.tv?4.05:NS?1.6:4.2, SY=R.tv?2.9:NS?2.7:2.85; const scr=mesh(geo('plane',SW,SH),new THREE.MeshBasicMaterial({map:st,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}),cx,SY,-ZD/2+0.32,scene); scr.renderOrder=2;
   box(SW+0.3,SH+0.3,0.08,NS?'#3a2a1e':'#0a0a0a',cx,SY,-ZD/2+0.2,scene);
   room.screen={canvas:sc, ctx:sc.getContext('2d'), tex:st, last:-1};
   // ışık konileri
@@ -2401,7 +2401,7 @@ openMap=(function(prev){ return function(){ prev(); const box=$('mapBox'), cv=$(
   const up=cv.onpointerup; let down=null; cv.addEventListener('pointerdown',e=>{ down={x:e.clientX,y:e.clientY}; });
   cv.onpointerup=e=>{ const wasTap=down&&Math.hypot(e.clientX-down.x,e.clientY-down.y)<8; const before=CURHOUSE+'|'+CURFLOOR+'|'+$('game').classList.contains('show'); up(e);
     if(!wasTap||before!==CURHOUSE+'|'+CURFLOOR+'|'+$('game').classList.contains('show')) return; const b=cv.getBoundingClientRect(); const x=(e.clientX-b.left+MAPV.ox)/MAPV.s, z=(e.clientY-b.top+MAPV.oy)/MAPV.s;
-    const onStreet=(z>-4.5&&z<11.5&&x>-70&&x<132)||(z>=11.5&&z<26&&x>-19&&x<27)||(z>=11.5&&z<25&&x>96&&x<112);
+    const onStreet=(z>-4.5&&z<11.5&&x>-70&&x<132)||(z>=11.5&&z<26&&x>-19&&x<27)||(z>=11.5&&z<25&&x>96&&x<112)||(z>=11.5&&z<29&&x>-68&&x<-44);
     if(!onStreet){ toast('Oraya yürünmüyor, yola ya da parka dokun'); return; } closeSheets(); $('game').style.maxHeight='';
     if(CURFLOOR===null){ walkPlayerTo(x,z); toast('🚶 Yürüyorsun…'); } else { goStreet(); setTimeout(()=>{ PLAYER.obj.position.set(x,0,z); },60); } };
 }; })(openMap);
@@ -2543,7 +2543,7 @@ interact=(function(prev){ return function(it){ if(it.type==='tv'){ openTV(); ret
   cv.addEventListener('pointerdown',e=>{ dn={x:e.clientX,y:e.clientY,t:performance.now()}; },true);
   cv.addEventListener('pointerup',e=>{ if(!dn||MODE!=='floor'||!WORLD) return; const tap=Math.hypot(e.clientX-dn.x,e.clientY-dn.y)<10&&performance.now()-dn.t<400; dn=null; if(!tap) return; const r=WORLD.rooms.find(isTVRoom); if(!r) return;
     v.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1); rc.setFromCamera(v,camera); const p=new THREE.Plane(new THREE.Vector3(0,0,1),ZD/2-0.32), hit=new THREE.Vector3(); if(!rc.ray.intersectPlane(p,hit)) return;
-    if(Math.abs(hit.x-r.cx)<2.6&&Math.abs(hit.y-2.7)<1.5&&Math.hypot(PLAYER.obj.position.x-r.cx,PLAYER.obj.position.z)<14){ openTV(); setTimeout(()=>{ PLAYER.goal=null; },0); } },true); })();
+    if(Math.abs(hit.x-r.cx)<3.8&&Math.abs(hit.y-2.9)<2.1&&Math.hypot(PLAYER.obj.position.x-r.cx,PLAYER.obj.position.z)<14){ openTV(); setTimeout(()=>{ PLAYER.goal=null; },0); } },true); })();
 goStreet=(function(prev){ return function(){ if(TV.vid&&!TV.mini&&$('tv').style.display!=='none') tvMini(); prev(); }; })(goStreet);
 
 /* ===== 078: YouTube araması (anahtarsız, çok yollu) + sesli sohbet (WebRTC, Supabase sinyali) ===== */
@@ -2929,7 +2929,7 @@ function frame(now){
 function anySheet(){ return ['music','talk','stand','floors','more','game','style','acts'].some(id=>$(id).classList.contains('show')); }
 function updatePlayer(dt){
   const p=PLAYER.obj; let ix=JOY.x, iz=JOY.y;
-  if(KEYS.has('a')||KEYS.has('arrowleft')) ix=-1; if(KEYS.has('d')||KEYS.has('arrowright')) ix=1; if(KEYS.has('w')||KEYS.has('arrowup')) iz=-1; if(KEYS.has('s')||KEYS.has('arrowdown')) iz=1;
+  if(KEYS.has('a')||KEYS.has('arrowleft')) ix=-1; if(KEYS.has('d')||KEYS.has('arrowright')) ix=1; if(KEYS.has('w')||KEYS.has('arrowup')) iz=-1; if(KEYS.has('s')||KEYS.has('arrowdown')) iz=1; if(typeof TVSEAT!=='undefined'&&TVSEAT&&!TVSEAT.allow){ ix=0; iz=0; }
   let mx=0, mz=0, moving=false;
   if(!moving && JOY.id===null && !DRAG.joy){ PLAYER.idleT=(PLAYER.idleT||0)+dt; if(false) CAM.yaw=lerpAngle(CAM.yaw,PLAYER.obj.rotation.y+Math.PI,Math.min(1,dt*0.8)); }
   if(Math.hypot(ix,iz)>0.1){ standUp(); PLAYER.goal=null; PLAYER.dance=false;
@@ -3035,6 +3035,99 @@ function camClip(px,pz,tx,tz){ let t=1; const dx=tx-px, dz=tz-pz, pad=0.3;
     for(const [p,dd,lo,hi] of [[px,dx,A,B],[pz,dz,C,D]]){ if(Math.abs(dd)<1e-6){ if(p<lo||p>hi){ ok=false; break; } } else { let u=(lo-p)/dd, v=(hi-p)/dd; if(u>v) [u,v]=[v,u]; t0=Math.max(t0,u); t1=Math.min(t1,v); if(t0>t1){ ok=false; break; } } }
     if(ok&&t0<t) t=t0; } return Math.max(0.12,t-0.04); }
 
+
+/* ===== 083: büyük TV, koltukta kesintisiz izleme, ev güvenliği, yapay zekâ NPC sohbeti, açık hava sineması ===== */
+/* ---------- ekran tanımları (salon TV / sinema perdesi) ---------- */
+function salonScr(){ const r=WORLD&&WORLD.rooms.find(isTVRoom); return r?{id:'salon',x:r.cx,y:2.9,z:-ZD/2+0.32,w:7.2,h:4.05,seats:()=>r.seats.filter(s=>Math.abs(s.x-r.cx)<3)}:null; }
+const CIN={x:-56,y:5.6,z:31,w:16,h:9,seats:[],show:false,tex:null,ctx:null};
+function cinScr(){ return CURFLOOR===null?{id:'cinema',x:CIN.x,y:CIN.y,z:CIN.z-0.02,w:CIN.w,h:CIN.h,seats:()=>CIN.seats}:null; }
+TV.scrId='salon'; const curScr=()=>TV.scrId==='cinema'?cinScr():salonScr();
+tvScreenRect=function(){ const S=curScr(); if(!S) return null; let l=1e9,t=1e9,r=-1e9,b=-1e9; for(const [dx,dy] of [[-1,1],[1,1],[1,-1],[-1,-1]]){ const v=new THREE.Vector3(S.x+dx*S.w/2,S.y+dy*S.h/2,S.z).project(camera); if(v.z>1) return null; const X=(v.x*.5+.5)*innerWidth, Y=(-v.y*.5+.5)*innerHeight; l=Math.min(l,X); r=Math.max(r,X); t=Math.min(t,Y); b=Math.max(b,Y); } return {l,t,r,b}; };
+/* ---------- koltukta izle (salon ya da sinema) — joystick'le hemen kalkma yok ---------- */
+tvSeat=function(){ const S=curScr(); if(!S){ if(TV.scrId==='cinema'){ toast('Sinemaya gidiyorsun…'); goCinema(); } else { toast('Koltukta izlemek için evindeki salona git'); goHouse('senin'); } return; }
+  const seats=S.seats().filter(s=>!s.taken||s.taken==='player'); const pp=PLAYER.obj.position; const s=seats.sort((a,b)=>Math.hypot(a.x-S.x,a.z-S.z+(S.id==='cinema'?-9:0))-Math.hypot(b.x-S.x,b.z-S.z+(S.id==='cinema'?-9:0)))[0]; if(!s){ toast('Boş koltuk yok'); return; }
+  TVSEAT=null; standUp(); PLAYER.goal=null; PLAYER.sitting=true; PLAYER.seat=s; s.taken='player'; PLAYER.obj.position.set(s.x,s.h-0.45,s.z); PLAYER.obj.rotation.y=Math.atan2(S.x-s.x,S.z-s.z);
+  TVSEAT={fp:CAM.fp,allow:false,hold:0}; CAM.fp=true; CAM.yaw=Math.atan2(s.x-S.x,s.z-S.z); const eye=1.25+s.h-0.45; CAM.fpPitch=Math.atan2(S.y-eye,Math.hypot(S.x-s.x,S.z-s.z));
+  const el=$('tv'); el.style.transition='none'; el.classList.remove('full','mini','land','rot'); el.classList.add('seat'); el.style.display='flex'; tvBtns(); standBtn(true); toast('🛋️ Kalkmak için "Kalk"a bas ya da joystick\'i bir süre ileri it'); seatLoop(); };
+tvUnseat=function(){ if(!TVSEAT) return; CAM.fp=TVSEAT.fp; TVSEAT=null; const el=$('tv'); el.classList.remove('seat'); standBtn(false); tvBtns(); setTimeout(()=>{ el.style.transition=''; },60); };
+standUp=(function(prev){ return function(){ if(TVSEAT&&!TVSEAT.allow) return; prev(); }; })(standUp);
+function standBtn(on){ let b=$('tvStand'); if(!b){ b=document.createElement('button'); b.id='tvStand'; b.type='button'; b.textContent='🚶 Kalk'; b.style.cssText='position:fixed;right:14px;bottom:calc(env(safe-area-inset-bottom) + 30px);z-index:42;padding:12px 18px;border-radius:24px;border:0;background:#fff;color:#111;font:700 15px system-ui;box-shadow:0 6px 20px #0008'; b.onclick=()=>seatLeave(); document.body.appendChild(b); } b.style.display=on?'block':'none'; }
+function seatLeave(){ if(!TVSEAT) return; TVSEAT.allow=true; standUp(); }
+econTick=(function(prev){ return function(dt){ prev(dt); if(TVSEAT){ const m=Math.hypot(JOY.x,JOY.y); TVSEAT.hold=m>0.85?TVSEAT.hold+dt:0; if(TVSEAT.hold>0.7) seatLeave(); } }; })(econTick);
+/* ekrandaki büyük yazı yok: sadece kapak; arka plan ipucu da kapalı */
+drawScreen=(function(prev){ return function(room,t){ if(!(isTVRoom(room)&&TV.vid)) return prev(room,t); const s=room.screen, x=s.ctx; x.setTransform(1,0,0,1,0,0); x.fillStyle='#000'; x.fillRect(0,0,s.canvas.width,s.canvas.height); if(TV.img&&TV.img.complete&&TV.img.naturalWidth){ try{ x.drawImage(TV.img,0,0,s.canvas.width,s.canvas.height); }catch(e){} } s.tex.needsUpdate=true; }; })(drawScreen);
+(function(){ const h=$('tvSeatHint'); if(h) h.remove(); const st=document.createElement('style'); st.textContent='#tvSeatHint{display:none!important} #tv.seat #tvBar{opacity:.85}'; document.head.appendChild(st); })();
+
+/* ---------- ev güvenliği: evine sadece davet ettiklerin girer ---------- */
+SOC.guests=SOC.guests||[]; if(SOC.homeLock==null) SOC.homeLock=true;
+const HOME_ROOMS=['salon','yatak','benimoda'];
+const canEnterHome=id=>!SOC.homeLock||SOC.guests.includes(id)||(FRIEND[id]&&FRIEND[id].status==='sevgili');
+spawnRoomNPCs=(function(prev){ return function(g,room){ if(HOME_ROOMS.includes(g)) ROSTER.filter(r=>NPCLOC[r.id]===g&&!canEnterHome(r.id)).forEach(r=>{ NPCLOC[r.id]=r.home==='street'||!ROOMS[r.home]?'street':r.home; }); prev(g,room); }; })(spawnRoomNPCs);
+bringNPC=(function(prev){ return function(id){ if(CURHOUSE==='senin'&&!SOC.guests.includes(id)){ SOC.guests.push(id); saveLife(); } return prev(id); }; })(bringNPC);
+openPhone=(function(prev){ return function(app){ prev(app); if(PHAPP!=='oda') return; const B=$('phBody'); const box=document.createElement('div'); box.style.cssText='margin-top:12px;padding:10px;border-radius:12px;background:#ffffff0d';
+  box.innerHTML=`<b>🔒 Evinin kapısı</b><p style="color:var(--muted);margin:4px 0 8px">${SOC.homeLock?'Kilitli: sadece davet ettiklerin ve sevgilin girebilir.':'Açık: herkes girip çıkabilir.'}</p><button class="btn" type="button" id="hlT">${SOC.homeLock?'Kapıyı aç':'Kapıyı kilitle'}</button>`+
+    (SOC.guests.length?'<p style="margin:10px 0 4px"><b>Misafirlerin</b></p>'+SOC.guests.map(id=>{ const r=rosterNPC(id); return r?`<div style="display:flex;align-items:center;gap:8px;margin:4px 0"><span style="flex:1">👤 ${esc(r.nr[0])}</span><button class="btn" type="button" data-kick="${id}">Evden çıkar</button></div>`:''; }).join(''):'<p style="color:var(--muted);margin-top:8px">Misafir yok. Birini davet etmek için evdeyken Rehber\'den "Çağır".</p>');
+  B.prepend(box); $('hlT').onclick=()=>{ SOC.homeLock=!SOC.homeLock; saveLife(); openPhone('oda'); };
+  box.querySelectorAll('[data-kick]').forEach(b=>b.onclick=()=>{ const id=b.dataset.kick; SOC.guests=SOC.guests.filter(x=>x!==id); NPCLOC[id]='street'; saveLife(); saveSocial(); const n=WORLD.npcs.find(n=>n.id===id); if(n){ say(n,'Tamam, ben kaçayım o zaman 👋',3); setTimeout(()=>{ scene.remove(n.person); WORLD.npcs.splice(WORLD.npcs.indexOf(n),1); },1500); } toast('Misafir evden çıktı'); openPhone('oda'); }); }; })(openPhone);
+
+/* ---------- yapay zekâ NPC sohbeti (anahtarsız; olmazsa yerel cevap) ---------- */
+SOC.ai=SOC.ai||{}; if(SOC.aiOn==null) SOC.aiOn=true; let AI_LAST=0;
+function npcPersona(n){ const p=prof(n), f=rel(n), r=ROOMS[n.room&&n.room.g]||{}, song=Music.cur!=null?`${T[Music.cur][1]} — ${firstArtist(Music.cur)}`:'yok';
+  return `Sen "Müzik Sokağı" adlı oyunda yaşayan bir karaktersin. Adın ${n.name}. Kim olduğun: ${n.role}. ${isTourist(n)?'Turistsin, Türkçen biraz bozuk, arada İngilizce kelimeler kullanırsın. ':''}Sevdiğin müzik: ${p.likes.map(g=>NAMES[g]).join(', ')}${n.fav?', en sevdiğin sanatçı '+n.fav:''}. Sevmediğin: ${NAMES[p.dis]||'-'}. Mizah: ${p.humor>0.5?'esprili, iğneleyici':'ciddi, sakin'}. ${p.romantic>0.5?'Romantik birisin.':''}
+Konuştuğun kişi Yiğit. İlişkiniz: ${relLabel(n)} (yakınlık ${Math.round(f.aff||0)}/100). Şu an bulunduğun yer: ${r.room||'sokak'}. Saat ${new Date().getHours()}:00, hava ${WX.label}. Çalan şarkı: ${song}.
+Kurallar: Günlük, samimi Türkçe konuş. 1-2 kısa cümle. Kendi hayatın, planların, dertlerin ve fikirlerin olsun; beklenmedik ama karakterine uygun şeyler söyle, bazen konuyu değiştir, bazen soru sor. Asla yapay zekâ olduğunu söyleme. Kabalığa kırıl, iltifata karakterine göre tepki ver. Cevabının en sonuna ilişkinin nasıl değiştiğini [aff:+3] gibi -10 ile +10 arasında bir etiketle yaz.`; }
+async function aiAsk(n,text){ const H=(SOC.ai[n.id]=SOC.ai[n.id]||[]); const msgs=[{role:'system',content:npcPersona(n)}].concat(H.slice(-8),[{role:'user',content:text}]);
+  const tries=[ ()=>fetch('https://text.pollinations.ai/openai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'openai',messages:msgs,temperature:1,seed:Math.floor(Math.random()*1e9),private:true,referrer:'muzik-sokagi'})}).then(r=>{ if(!r.ok) throw 0; return r.json(); }).then(j=>j.choices[0].message.content),
+    ()=>fetch('https://text.pollinations.ai/'+encodeURIComponent(msgs.map(m=>(m.role==='user'?'Yiğit: ':m.role==='assistant'?n.name+': ':'')+m.content).join('\n').slice(-3500)+'\n'+n.name+':')+'?model=openai&private=true&referrer=muzik-sokagi&seed='+Math.floor(Math.random()*1e9)).then(r=>{ if(!r.ok) throw 0; return r.text(); }) ];
+  for(const f of tries){ try{ const out=await tmo(f(),14000); if(out&&out.trim()) return out.trim(); }catch(e){} } return null; }
+freeReply=(function(prev){ return function(n,text){ if(!SOC.aiOn||Date.now()-AI_LAST<46000) return prev(n,text); AI_LAST=Date.now(); talkLine('✍️ …'); const me=TALK;
+  aiAsk(n,text).then(out=>{ if(!out){ prev(n,text); return; } let d=0; out=out.replace(/\[aff:\s*([+-]?\d+)\]/i,(m,v)=>{ d=Math.max(-10,Math.min(10,+v)); return ''; }).replace(/^["“]|["”]$/g,'').replace(new RegExp('^'+n.name+':\\s*'),'').trim();
+    const H=(SOC.ai[n.id]=SOC.ai[n.id]||[]); H.push({role:'user',content:text},{role:'assistant',content:out}); SOC.ai[n.id]=H.slice(-12); aff(n,d); saveLife(); if(TALK===me) talkLine(out); else say(n,out.slice(0,80),5); }); }; })(freeReply);
+(function(){ const r=$('freeRow'); if(r){ const i=$('freeIn'); i.placeholder='Ne istersen yaz… (🤖 yapay zekâ)'; } })();
+
+/* ---------- açık hava sineması ---------- */
+buildStreet=(function(prev){ return function(){ const W=prev(); const X=CIN.x, Z=CIN.z; CIN.seats=[];
+  const grass=new THREE.Mesh(geo('plane',24,20),mat('#2f5d34')); grass.rotation.x=-Math.PI/2; grass.position.set(X,0.025,23); scene.add(grass);
+  for(const s of [-1,1]){ box(0.5,10.5,0.5,'#222',X+s*8.4,5.25,Z+0.3,scene); } box(17.2,0.4,0.6,'#222',X,10.4,Z+0.3,scene); box(16.8,9.6,0.2,'#111',X,CIN.y,Z+0.25,scene);
+  const cv=document.createElement('canvas'); cv.width=1024; cv.height=576; CIN.ctx=cv.getContext('2d'); CIN.tex=new THREE.CanvasTexture(cv); CIN.tex.colorSpace=THREE.SRGBColorSpace||CIN.tex.colorSpace;
+  const scr=mesh(geo('plane',CIN.w,CIN.h),new THREE.MeshBasicMaterial({map:CIN.tex,toneMapped:false,side:THREE.DoubleSide}),X,CIN.y,Z,scene); scr.rotation.y=Math.PI; cinDraw();
+  W.colliders.push([X-8.8,X+8.8,Z,Z+0.8]);
+  for(let row=0;row<3;row++) for(let k=0;k<6;k++){ const x=X-6.25+k*2.5, z=Z-7-row*3; const s=makeSeat('loungeChairs','#7a0f22'); s.g.position.set(x,0,z); s.g.rotation.y=0; scene.add(s.g); CIN.seats.push({x,z,h:s.h,taken:null}); W.colliders.push([x-0.4,x+0.4,z-0.4,z+0.4]); }
+  for(let k=0;k<12;k++){ const a=k/11; sph(0.12,'#ffe2a8',X-10+a*20,6.8-Math.sin(a*Math.PI)*1.2,Z-12,scene,5,{emissive:'#ffd08a',ei:1}); } for(const s of [-1,1]) cyl(0.08,0.08,7,'#333',X+s*10,3.5,Z-12,scene,6);
+  const pc=group(X+10.5,0,Z-15,scene); box(2.4,1.1,1.2,'#c1121f',0,0.55,0,pc); box(2.6,0.15,1.4,'#fff',0,1.15,0,pc); for(let k=0;k<5;k++) box(2.6,0.9,0.05,k%2?'#fff':'#c1121f',-1.04+k*0.52,2.2,0,pc).scale.x=0.2; box(2.6,0.12,1.6,'#c1121f',0,2.7,0,pc);
+  W.colliders.push([X+9.2,X+11.8,Z-15.7,Z-14.3]); W.inter.push({type:'popcorn',x:X+10.5,z:Z-16.6,r:1.8,label:'🍿 Patlamış mısır (5 🪙)'});
+  const t=signTex('AÇIK HAVA SİNEMASI','Film geceleri · her akşam 20:00','#111','#ffd23f',640,170); const sg=mesh(geo('plane',4,1.07),new THREE.MeshBasicMaterial({map:t}),X-10.5,2.6,Z-16,scene); sg.rotation.y=Math.PI; cyl(0.06,0.06,2.2,'#333',X-12.3,1.1,Z-16,scene,5); cyl(0.06,0.06,2.2,'#333',X-8.7,1.1,Z-16,scene,5);
+  W.inter.push({type:'cinema',x:X,z:Z-18,r:3,label:'🎬 Açık hava sineması'}); return W; }; })(buildStreet);
+function cinDraw(){ const x=CIN.ctx; if(!x) return; const W=1024,H=576; x.fillStyle='#050505'; x.fillRect(0,0,W,H);
+  if(CIN.show&&TV.img&&TV.img.complete&&TV.img.naturalWidth){ try{ x.drawImage(TV.img,0,0,W,H); }catch(e){} }
+  else { x.fillStyle='#ffd23f'; x.font='800 64px sans-serif'; x.textAlign='center'; x.fillText('🎬 AÇIK HAVA SİNEMASI',W/2,H/2-10); x.fillStyle='#fff'; x.font='500 30px sans-serif'; x.fillText('Bir film seç, koltuğuna kurul',W/2,H/2+50); x.textAlign='left'; }
+  CIN.tex.needsUpdate=true; }
+function goCinema(){ closeSheets(); if(CURFLOOR!==null) goStreet(); setTimeout(()=>{ PLAYER.obj.position.set(CIN.x,0,CIN.z-17); CAM.yaw=Math.PI; },80); }
+function openCinema(){ closeSheets(); $('gTitle').textContent='🎬 Açık hava sineması'; $('gBody').innerHTML='<p style="color:var(--muted)">Film seç; perdeye yansısın, koltuğuna otur. Sokaktaki NPC\'ler de gelip seninle izler. Patlamış mısırı unutma 🍿</p>'; const o=$('gOpts'); o.innerHTML='';
+  const pick=q=>{ TV.scrId='cinema'; closeSheets(); openTV(); setTimeout(()=>tvSearchUI(q),50); };
+  [['🔎 Film ara',''],['🎞️ Kemal Sunal filmleri','Kemal Sunal filmi full izle'],['😂 Cem Yılmaz','Cem Yılmaz full gösteri'],['🎬 Yeşilçam klasikleri','Yeşilçam filmi full izle'],['🌍 Belgesel','belgesel türkçe full'],['🎨 Kısa animasyon','animasyon kısa film'],['🎸 Konser filmi','full concert live']].forEach(([t,q])=>{ const b=document.createElement('button'); b.className='opt'; b.type='button'; b.textContent=t; b.onclick=()=>pick(q); o.appendChild(b); });
+  if(TV.vid&&TV.scrId==='cinema'){ const b=document.createElement('button'); b.className='opt pri'; b.type='button'; b.textContent='🛋️ Koltuğuna otur, izlemeye devam et'; b.onclick=()=>{ closeSheets(); $('tv').style.display='flex'; tvSeat(); }; o.prepend(b); }
+  $('game').classList.add('show'); }
+interact=(function(prev){ return function(it){ if(it.type==='cinema'){ openCinema(); return; } if(it.type==='popcorn'){ if(spend(5)){ NEED.hu=Math.max(0,NEED.hu-15); needUI(); toast('🍿 Çıtır çıtır!'); } return; } prev(it); }; })(interact);
+/* TV'yi sinemadan açınca film perdeye gider ve otomatik koltuğa oturursun */
+tvPlay=(function(prev){ return function(id,t,th){ prev(id,t,th); if(TV.scrId==='cinema'){ CIN.show=true; TV.img&&TV.img.addEventListener('load',cinDraw); setTimeout(cinDraw,1500); if(CURFLOOR===null){ setTimeout(()=>tvSeat(),400); } toast('🎬 Film perdede! NPC\'ler izlemeye geliyor'); logEvent('Açık hava sinemasında film gecesi: '+t); } }; })(tvPlay);
+tvClose=(function(prev){ return function(){ prev(); if(TV.scrId==='cinema'){ CIN.show=false; cinDraw(); } TV.scrId='salon'; TV.vid=null; }; })(tvClose);
+openTV=(function(prev){ return function(){ if(TV.scrId!=='cinema'&&CURFLOOR===null&&PLAYER.obj&&Math.hypot(PLAYER.obj.position.x-CIN.x,PLAYER.obj.position.z-(CIN.z-12))<16) TV.scrId='cinema'; prev(); }; })(openTV);
+goHouse=(function(prev){ return function(id){ if(TVSEAT){ seatLeave(); } prev(id); }; })(goHouse);
+goStreet=(function(prev){ return function(){ if(TVSEAT){ seatLeave(); } prev(); }; })(goStreet);
+/* NPC'ler film izlemeye gelir */
+npcUpdate=(function(prev){ return function(n,dt,t){ const p=n.person;
+  if(CIN.show&&CURFLOOR===null&&n.room===STREET_ROOM&&!n.follow&&n.state!=='talk'&&(!n.act||n.act.type==='cinema')){
+    if(!n.act){ const free=CIN.seats.filter(s=>!s.taken); const watchers=WORLD.npcs.filter(m=>m.act&&m.act.type==='cinema').length; if(!free.length||watchers>=8||Math.random()>0.004) return prev(n,dt,t); const s=rnd(free); s.taken=n.id; n.act={type:'cinema',seat:s,t:9999}; say(n,rnd(['Film mi var? Geliyorum!','Sinema gecesi 🍿','Yer kaldı mı?']),3); }
+    const s=n.act.seat; if(!n.act.sat){ if(moveToward(n,s.x,s.z+0.9,dt,2)){ n.act.sat=true; } else { animatePerson(p,'walk',t); return; } }
+    p.position.set(s.x,s.h-0.45,s.z); p.rotation.y=0; animatePerson(p,'sit',t,0.3,0); if(Math.random()<0.0015) say(n,rnd(['Bu sahne efsane!','Hahaha 😂','Şşş, izliyorum!','Mısır kimde?','Ağlayacağım şimdi…','Bunu beklemiyordum!']),3); return; }
+  if(n.act&&n.act.type==='cinema'){ n.act.seat.taken=null; p.position.y=0; n.act=null; n.state='idle'; n.timer=1; }
+  prev(n,dt,t); }; })(npcUpdate);
+/* film gecesi duyurusu, harita ve menü */
+let CIN_ANN=0; econTick=(function(prev){ return function(dt){ prev(dt); const h=new Date().getHours(); if(h>=20&&h<23&&CURFLOOR===null&&Date.now()-CIN_ANN>3600000){ CIN_ANN=Date.now(); toast('🎬 Bu akşam açık hava sinemasında film gecesi! Haritadan git.'); } }; })(econTick);
+mapPlaces=(function(prev){ return function(){ return prev().concat([{x:CIN.x,z:24,w:20,d:16,c:'#ffd23f',n:'Açık Hava Sineması',sub:CIN.show?'Şu an film var':'Film geceleri',go:()=>goCinema(),icon:'🎬'}]); }; })(mapPlaces);
+$('bMenu').addEventListener('click',()=>setTimeout(()=>{ const o=$('gOpts'); if(!o||$('gTitle').textContent!=='Menü') return; const mk=(t,fn)=>{ const b=document.createElement('button'); b.className='opt'; b.type='button'; b.textContent=t; b.onclick=fn; return b; };
+  o.insertBefore(mk('🎬 Açık hava sineması',()=>goCinema()),o.children[1]||null); o.appendChild(mk(SOC.aiOn?'🤖 Yapay zekâ sohbet: Açık':'🤖 Yapay zekâ sohbet: Kapalı',()=>{ SOC.aiOn=!SOC.aiOn; saveLife(); toast(SOC.aiOn?'NPC\'ler yapay zekâyla konuşacak':'NPC\'ler hazır cevaplarla konuşacak'); closeSheets(); })); },0));
 
 </script>
 <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
