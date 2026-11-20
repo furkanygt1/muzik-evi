@@ -2916,7 +2916,7 @@ function frame(now){
     const pp=PLAYER.obj.position; const tx=pp.x+Math.sin(CAM.yaw)*Math.cos(CAM.pitch)*CAM.dist, ty=1.2+Math.sin(CAM.pitch)*CAM.dist, tz=pp.z+Math.cos(CAM.yaw)*Math.cos(CAM.pitch)*CAM.dist;
     if(CAM.fp && !CHILL){ const eye=tmpV.set(pp.x,(PLAYER.sitting?1.25:1.7)+pp.y,pp.z); camera.position.copy(eye); camera.lookAt(eye.x-Math.sin(CAM.yaw)*Math.cos(CAM.fpPitch), eye.y+Math.sin(CAM.fpPitch), eye.z-Math.cos(CAM.yaw)*Math.cos(CAM.fpPitch)); PLAYER.obj.visible=false; if(!PLAYER.goal && JOY.id===null) PLAYER.obj.rotation.y=CAM.yaw+Math.PI; }
     else if(CHILL && cr){ const a=GT*0.08; camera.position.lerp(tmpV.set(cr.cx+Math.sin(a)*9,4.5,1+Math.cos(a)*6),Math.min(1,dt*1.5)); camera.lookAt(cr.cx,2.4,-ZD/2+2); }
-    else { PLAYER.obj.visible=true; camera.position.lerp(tmpV.set(tx,ty,tz), Math.min(1,dt*6)); camera.lookAt(pp.x,pp.y+1.2,pp.z); }
+    else { PLAYER.obj.visible=true; const ck=camClip(pp.x,pp.z,tx,tz); const cx2=pp.x+(tx-pp.x)*ck, cz2=pp.z+(tz-pp.z)*ck, cy2=1.2+(ty-1.2)*Math.max(ck,0.55); const cd=Math.hypot(camera.position.x-pp.x,camera.position.z-pp.z), td=Math.hypot(cx2-pp.x,cz2-pp.z); camera.position.lerp(tmpV.set(cx2,cy2,cz2), ck<1&&td<cd?1:1-Math.exp(-dt*7)); camera.lookAt(pp.x,pp.y+1.2,pp.z); }
     // arayüz
     NEAR=findNear(); const a=$('act'); if(NEAR && !anySheet()){ a.textContent=NEAR.label; a.classList.add('show'); } else a.classList.remove('show');
     const room=cr; $('where').innerHTML=CURFLOOR==null?'<b>Müzik Sokağı</b>':`<b>${FLOORS[CURFLOOR].short}</b> · ${room?room.R.room:'Lobi'}`;
@@ -2933,14 +2933,14 @@ function updatePlayer(dt){
   let mx=0, mz=0, moving=false;
   if(!moving && JOY.id===null && !DRAG.joy){ PLAYER.idleT=(PLAYER.idleT||0)+dt; if(false) CAM.yaw=lerpAngle(CAM.yaw,PLAYER.obj.rotation.y+Math.PI,Math.min(1,dt*0.8)); }
   if(Math.hypot(ix,iz)>0.1){ standUp(); PLAYER.goal=null; PLAYER.dance=false;
-    const ry=(JOY.id!==null||DRAG.joy)&&JOY.ref!=null&&!CAM.fp?JOY.ref:CAM.yaw; const s=Math.sin(ry), c=Math.cos(ry); mx=ix*c+iz*s; mz=-ix*s+iz*c; const m=Math.min(1,Math.hypot(ix,iz)); const l=Math.hypot(mx,mz); mx=mx/l*m; mz=mz/l*m; moving=true; }
+    const ry=(JOY.id!==null||DRAG.joy)&&JOY.ref!=null&&!CAM.fp?JOY.ref:CAM.yaw; const s=Math.sin(ry), c=Math.cos(ry); mx=ix*c+iz*s; mz=-ix*s+iz*c; const m0=Math.min(1,Math.hypot(ix,iz)), m=Math.min(1,Math.max(0,(m0-0.12)/0.88)**1.25*1.05); const l=Math.hypot(mx,mz); mx=mx/l*m; mz=mz/l*m; moving=true; }
   else if(PLAYER.goal){ const dx=PLAYER.goal.x-p.position.x, dz=PLAYER.goal.z-p.position.z, d=Math.hypot(dx,dz);
     if(d<0.25 || (PLAYER.goal.stuck||0)>0.6){ const cb=PLAYER.goal.cb; PLAYER.goal=null; if(cb) cb(); } else { mx=dx/d; mz=dz/d; moving=true; } }
-  const V=PLAYER.vel; if(moving){ V.x=mx; V.z=mz; } else { V.x*=Math.max(0,1-dt*14); V.z*=Math.max(0,1-dt*14); mx=V.x; mz=V.z; } const spd=Math.hypot(mx,mz); if(!moving && spd>0.05){ moving=true; }
+  const V=PLAYER.vel; if(moving&&!PLAYER.goal){ const k=1-Math.exp(-dt*11); V.x+=(mx-V.x)*k; V.z+=(mz-V.z)*k; mx=V.x; mz=V.z; } else if(moving){ V.x=mx; V.z=mz; } else { const k=Math.exp(-dt*10); V.x*=k; V.z*=k; mx=V.x; mz=V.z; } const spd=Math.hypot(mx,mz); if(!moving && spd>0.05){ moving=true; }
   if(moving){ const sp=4.4; const ox=p.position.x, oz=p.position.z; const [nx,nz]=collide(ox+mx*sp*dt, oz+mz*sp*dt); p.position.x=nx; p.position.z=nz;
     if(PLAYER.goal){ const prog=Math.hypot(nx-ox,nz-oz); PLAYER.goal.stuck=(prog<sp*dt*0.2)?(PLAYER.goal.stuck||0)+dt:0; }
-    if(spd>0.05) p.rotation.y=lerpAngle(p.rotation.y,Math.atan2(mx,mz),Math.min(1,dt*22)); PLAYER.walkT=(PLAYER.walkT||0)+dt*(0.6+spd*0.9); animatePerson(p,'walk',PLAYER.walkT);
-    PLAYER.idleT=0; if(!CAM.fp && (JOY.id!==null||DRAG.joy) && spd>0.3) CAM.yaw=lerpAngle(CAM.yaw,p.rotation.y+Math.PI,Math.min(1,dt*2.2)); }
+    if(spd>0.05) p.rotation.y=lerpAngle(p.rotation.y,Math.atan2(mx,mz),1-Math.exp(-dt*14)); PLAYER.walkT=(PLAYER.walkT||0)+dt*(0.6+spd*0.9); animatePerson(p,'walk',PLAYER.walkT);
+    PLAYER.idleT=0; if(!CAM.fp && (JOY.id!==null||DRAG.joy) && spd>0.3) CAM.yaw=lerpAngle(CAM.yaw,p.rotation.y+Math.PI,1-Math.exp(-dt*1.8*Math.min(1,spd))); }
   else if(PLAYER.sitting) animatePerson(p,'sit',GT,1,Beat.phase);
   else if(PLAYER.dance && Music.playing) animatePerson(p,'dance',GT,1,Beat.phase);
   else animatePerson(p,'idle',GT);
@@ -2974,6 +2974,67 @@ tvSearchUI=(function(prev){ return function(q){ prev(q); const R=$('tvRes');
   if(Music.cur!=null&&!q&&R){ const b=document.createElement('button'); b.className='tvi'; b.type='button'; b.style.fontWeight='700'; b.textContent='🎵 Çalan şarkının videosu: '+T[Music.cur][1]; b.onclick=async()=>{ b.textContent='Aranıyor…'; const id=await ytForTrack(Music.cur); if(id) tvPlay(id,T[Music.cur][1]+' — '+firstArtist(Music.cur),'https://i.ytimg.com/vi/'+id+'/mqdefault.jpg'); else { $('tvQ').value=T[Music.cur][1]+' '+firstArtist(Music.cur); $('tvGo').click(); } }; R.prepend(b); }
   const go=$('tvGo'), old=go.onclick; go.onclick=async()=>{ await old(); const r=$('tvRes'); if(r&&r.querySelector('#tvYT')){ const has=typeof MP!=='undefined'&&MP.cfg&&MP.cfg.url;
     r.insertAdjacentHTML('afterbegin',`<div style="padding:10px 12px;margin:8px 10px;border-radius:12px;background:#1d1d1d;font-size:14px;line-height:1.5"><b>Aramayı kalıcı açmak için (1 kez, 2 dk):</b><br>${has?'':'1) ☰ → 👥 Arkadaşlarla oyna → Supabase URL ve anahtarını gir.<br>'}${has?'1':'2'}) Supabase → Edge Functions → Deploy a new function → <b>yt-search</b> adıyla <a href="https://github.com/furkanygt1/muzik-evi/blob/main/supabase/functions/yt-search/index.ts" target="_blank" style="color:#5ac8fa">bu kodu</a> yapıştır → Deploy. Ayarlardan "Verify JWT"yi kapat.</div>`); } }; $('tvQ').onkeydown=e=>{ if(e.key==='Enter') go.onclick(); }; }; })(tvSearchUI);
+
+/* ===== 082: TV arayüzü, koltukta izleme, yatay izleme; koltuk yönleri; akıcı joystick; kamera duvar çarpışması ===== */
+/* ---------- koltuklar sahneye/TV'ye baksın ---------- */
+makeSeat=(function(prev){ return function(type,acc){ const s=prev(type,acc); s.g.rotation.y=Math.PI; return s; }; })(makeSeat);
+
+/* ---------- TV arayüzü ---------- */
+(function(){ const st=document.createElement('style'); st.textContent=`
+#tv{background:#0f0f0f} #tvBar{background:linear-gradient(#1c1c1c,#121212);border-bottom:1px solid #ffffff12;gap:4px}
+#tvBar b{font-size:15px} #tvBar button{height:36px;min-width:38px;padding:0 9px;font-weight:600;font-size:14px}
+#tvBar .lbl{display:inline} #tv.mini #tvBar .lbl,#tv.seat #tvBar .lbl{display:none}
+#tvSearch{position:sticky;top:0;background:#0f0f0f;z-index:2;padding:12px} #tvSearch input{border-radius:22px;padding:12px 16px;background:#222;border-color:#2c2c2c}
+#tvSearch button{border-radius:22px;padding:0 18px}
+#tvRes{padding:0 6px 20px} .tvi{padding:10px 8px;border-radius:12px} .tvi:active{background:#ffffff10}
+.tvi img{width:44%;max-width:200px;height:auto;aspect-ratio:16/9} .tvi b{font-size:15px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#tv.seat{overflow:visible;border-radius:4px;box-shadow:0 0 30px #9cf6;transition:none} #tv.seat #tvBar{position:absolute;top:auto;bottom:100%;left:0;right:0;padding:4px;background:#000a;border-radius:8px 8px 0 0}
+#tv.seat #tvBody>button{display:none} #tv.seat #ytP{height:100%!important}
+#tv.land{transition:none} #tv.land.rot{transform:rotate(90deg);transform-origin:center center}
+#tvSeatHint{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 130px);transform:translateX(-50%);z-index:41;background:#000b;color:#fff;padding:8px 14px;border-radius:20px;font:600 13px system-ui;display:none}`; document.head.appendChild(st);
+  const bar=$('tvBar'); const mk=(id,t,l,fn)=>{ const b=document.createElement('button'); b.id=id; b.type='button'; b.innerHTML=t; b.setAttribute('aria-label',l); b.onclick=e=>{ e.stopPropagation(); fn(); }; return b; };
+  bar.insertBefore(mk('tvSeat','🛋️<span class="lbl"> Koltukta</span>','Koltukta otur, TV\'den izle',()=>tvSeat()),$('tvMin'));
+  bar.insertBefore(mk('tvLand','⟲<span class="lbl"> Yatay</span>','Yatay izle',()=>tvLand()),$('tvMin'));
+  const h=document.createElement('div'); h.id='tvSeatHint'; h.textContent='🛋️ Koltukta izliyorsun · kalkmak için joystick\'i oynat · büyütmek için ⛶'; document.body.appendChild(h);
+  const ex=mk('tvBig','⛶','Tam ekran',()=>{ tvUnseat(); tvFull(); }); ex.style.display='none'; bar.insertBefore(ex,$('tvMin')); })();
+function tvBtns(){ const seat=$('tv').classList.contains('seat'); $('tvSeat').style.display=TV.vid&&!seat?'':'none'; $('tvLand').style.display=TV.vid&&!seat?'':'none'; $('tvBig').style.display=seat?'':'none'; $('tvList').style.display=seat?'none':''; }
+tvPlay=(function(prev){ return function(id,t,th){ prev(id,t,th); tvBtns(); }; })(tvPlay);
+tvFull=(function(prev){ return function(){ $('tv').classList.remove('land','rot','seat'); prev(); tvBtns(); }; })(tvFull);
+tvMini=(function(prev){ return function(){ tvUnseat(true); $('tv').classList.remove('land','rot'); prev(); tvBtns(); }; })(tvMini);
+tvClose=(function(prev){ return function(){ tvUnseat(true); $('tv').classList.remove('land','rot'); prev(); }; })(tvClose);
+
+/* yatay: telefon dikse 90° çevir, yataysa tam ekran */
+function tvLand(){ const el=$('tv'); if(el.classList.contains('land')){ tvFull(); return; } tvUnseat(true); el.classList.remove('mini'); el.classList.add('full','land'); try{ screen.orientation&&screen.orientation.lock&&screen.orientation.lock('landscape').catch(()=>{}); }catch(e){} landFit(); }
+function landFit(){ const el=$('tv'); if(!el.classList.contains('land')) return; const W=innerWidth,H=innerHeight; if(H>W){ el.classList.add('rot'); Object.assign(el.style,{width:H+'px',height:W+'px',left:(W-H)/2+'px',top:(H-W)/2+'px'}); el.style.setProperty('width',H+'px','important'); el.style.setProperty('height',W+'px','important'); el.style.setProperty('left',(W-H)/2+'px','important'); el.style.setProperty('top',(H-W)/2+'px','important'); }
+  else { el.classList.remove('rot'); ['width','height','left','top'].forEach(k=>el.style.removeProperty(k)); el.style.left='0'; el.style.top='0'; el.style.width=W+'px'; el.style.height=H+'px'; } }
+addEventListener('resize',()=>setTimeout(landFit,100));
+tvFull=(function(prev){ return function(){ const el=$('tv'); ['width','height','left','top'].forEach(k=>el.style.getPropertyPriority(k)==='important'&&el.style.removeProperty(k)); prev(); }; })(tvFull);
+
+/* koltukta izle: kanepeye otur, birinci şahıs gözle TV'ye bak, video oyundaki ekranın üstünde */
+let TVSEAT=null;
+function tvSeat(){ const r=WORLD&&WORLD.rooms.find(isTVRoom); if(!r||CURFLOOR===null){ toast('Koltukta izlemek için evindeki salona git'); goHouse('senin'); return; }
+  const s=r.seats.filter(s=>Math.abs(s.x-r.cx)<2.5).sort((a,b)=>Math.abs(a.x-r.cx)-Math.abs(b.x-r.cx))[0]||r.seats[0]; if(!s){ toast('Salonda koltuk yok'); return; }
+  standUp(); PLAYER.goal=null; PLAYER.sitting=true; PLAYER.seat=s; s.taken='player'; PLAYER.obj.position.set(s.x,s.h-0.45,s.z); PLAYER.obj.rotation.y=Math.PI;
+  TVSEAT={fp:CAM.fp,room:r}; CAM.fp=true; CAM.yaw=Math.atan2(-(r.cx-s.x),(ZD/2+s.z))*0; CAM.yaw=Math.atan2(s.x-r.cx,s.z+ZD/2-0.3); CAM.fpPitch=Math.atan2(2.7-1.25-(s.h-0.45),s.z+ZD/2)*1;
+  const el=$('tv'); el.classList.remove('full','mini','land','rot'); el.classList.add('seat'); el.style.display='flex'; $('tvSeatHint').style.display='block'; setTimeout(()=>{ $('tvSeatHint').style.display='none'; },4000); tvBtns(); seatLoop(); }
+function seatLoop(){ if(!TVSEAT) return; if(!PLAYER.sitting){ tvUnseat(); if(TV.vid) tvMini(); return; } const R=tvScreenRect(), el=$('tv');
+  if(R){ el.style.left=R.l+'px'; el.style.top=R.t+'px'; el.style.width=(R.r-R.l)+'px'; el.style.height=(R.b-R.t)+'px'; } requestAnimationFrame(seatLoop); }
+function tvUnseat(keep){ if(!TVSEAT) return; CAM.fp=TVSEAT.fp; TVSEAT=null; $('tv').classList.remove('seat'); $('tvSeatHint').style.display='none'; tvBtns(); }
+/* TV ekranı alanı: koltuk modunda çerçevenin içine otursun */
+tvScreenRect=(function(prev){ return function(){ const r=prev(); return r; }; })(tvScreenRect);
+
+/* ---------- kanepe: sırtı arkada, oturan TV'ye baksın ---------- */
+buildProp=(function(prev){ return function(p,x,z,R,room,k){ if(p!=='sofa') return prev(p,x,z,R,room,k); const g=group(x,0,z,scene);
+  box(3.2,0.45,1.1,R.acc,0,0.32,0,g); box(3.2,0.8,0.3,shade(R.acc,-0.2),0,0.75,0.45,g); for(const s of [-1.55,1.55]) box(0.3,0.65,1.1,shade(R.acc,-0.2),s,0.45,0,g); for(const s of [-0.8,0.8]) box(1.4,0.14,0.9,shade(R.acc,0.12),s,0.6,-0.05,g);
+  WORLD.colliders.push([x-1.7,x+1.7,z-0.6,z+0.6]); room&&room.seats&&room.seats.push({x:x-0.8,z:z-0.1,h:0.62,taken:null},{x:x+0.8,z:z-0.1,h:0.62,taken:null}); }; })(buildProp);
+
+/* ---------- kamera duvarların içine girmesin ---------- */
+function camWalls(){ if(WORLD._wl&&WORLD._wn===WORLD.colliders.length) return WORLD._wl; WORLD._wn=WORLD.colliders.length; return WORLD._wl=WORLD.colliders.filter(([a,b,c,d])=>{ const w=b-a,h=d-c; return Math.min(w,h)<=0.9&&Math.max(w,h)>=1.4; }); }
+function camClip(px,pz,tx,tz){ let t=1; const dx=tx-px, dz=tz-pz, pad=0.3;
+  for(const [a,b,c,d] of camWalls()){ const A=a-pad,B=b+pad,C=c-pad,D=d+pad; if(px>A&&px<B&&pz>C&&pz<D) continue; let t0=0,t1=1; let ok=true;
+    for(const [p,dd,lo,hi] of [[px,dx,A,B],[pz,dz,C,D]]){ if(Math.abs(dd)<1e-6){ if(p<lo||p>hi){ ok=false; break; } } else { let u=(lo-p)/dd, v=(hi-p)/dd; if(u>v) [u,v]=[v,u]; t0=Math.max(t0,u); t1=Math.min(t1,v); if(t0>t1){ ok=false; break; } } }
+    if(ok&&t0<t) t=t0; } return Math.max(0.12,t-0.04); }
+
 
 </script>
 <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
