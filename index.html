@@ -229,6 +229,7 @@ body.chill #np{top:auto;bottom:calc(env(safe-area-inset-bottom) + 20px)}
     <button class="opt" id="aQuiz" type="button">🎧 Şarkı tahmin oyunu · 40 🪙</button>
     <button class="opt" id="aRhythm" type="button">🥁 Ritim tut · isabet başına 5 🪙</button>
     <button class="opt" id="aStage" type="button">🎤 Sahneye çık, seyirciyi coştur · 25 🪙</button>
+    <button class="opt" id="aGroup" type="button">👥 Arkadaş grubumu çağır</button>
     <button class="opt" id="aSit" type="button">🪑 Oturup izle</button>
     <button class="opt" id="aStyle" type="button">👕 Karakterini değiştir</button>
   </div>
@@ -772,7 +773,7 @@ function buildRoom(g,i,x0,f){
   const spots=[[x0+1.4,-ZD/2+1.6],[x0+ZW-1.4,-ZD/2+1.6],[x0+1.4,ZD/2-2.2],[x0+ZW-5.6,ZD/2-1.6]];
   R.props.forEach((p,k)=>buildProp(p,spots[k][0],spots[k][1],R,room,k));
   // NPC'ler
-  NPC_ROLES[g].forEach((nr,k)=>spawnNPC(g,room,nr,k));
+  spawnRoomNPCs(g,room);
 }
 function buildDevice(kind,x,z,R){
   const g=group(x,0,z,scene); box(1.0,0.8,0.8,'#3a2a1e',0,0.4,0,g);
@@ -1270,15 +1271,15 @@ let CHILL=false;
 function setChill(on){ CHILL=on; document.body.classList.toggle('chill',on); let r=currentRoom(); if(on&&!r&&WORLD){ r=WORLD.rooms.find(x=>x.g===Music.room)||WORLD.rooms[0]; PLAYER.obj.position.set(r.cx,0,3); } if(on&&r&&!PLAYER.sitting) sitPlayerNearest(r); toast(on?'Chill modu · ekrana dokununca çık':'Chill modu kapandı'); }
 
 /* ===== HIZLI ODA GEÇİŞİ ===== */
-function roomBar(){ const f=FLOORS[CURFLOOR]; $('rbar').innerHTML=f.rooms.map((g,k)=>`<button class="achip" type="button" data-k="${k}">${ROOMS[g].room}</button>`).join(''); $('rbar').querySelectorAll('button').forEach(b=>b.onclick=()=>{ const r=WORLD.rooms[+b.dataset.k]; standUp(); PLAYER.goal=null; PLAYER.obj.position.set(r.cx,0,3); PLAYER.obj.rotation.y=Math.PI; CAM.yaw=0; NPCfollowJump(r); }); }
+function roomBar(){ if(CURFLOOR==null){ $('rbar').innerHTML=''; return; } const f=FLOORS[CURFLOOR]; $('rbar').innerHTML=f.rooms.map((g,k)=>`<button class="achip" type="button" data-k="${k}">${ROOMS[g].room}</button>`).join(''); $('rbar').querySelectorAll('button').forEach(b=>b.onclick=()=>{ const r=WORLD.rooms[+b.dataset.k]; standUp(); PLAYER.goal=null; PLAYER.obj.position.set(r.cx,0,3); PLAYER.obj.rotation.y=Math.PI; CAM.yaw=0; NPCfollowJump(r); }); }
 function NPCfollowJump(r){ WORLD.npcs.forEach(n=>{ if(n.follow){ n.person.position.set(r.cx+1.2,0,3.4); } }); }
 
 /* ===== KAYIT: çıkarken ve düzenli aralıklarla ===== */
-function saveAll(){ try{ save(); if(MODE==='floor'&&PLAYER.obj){ const p=PLAYER.obj.position; localStorage.setItem('muzikEvi.place',JSON.stringify({fi:CURFLOOR,x:p.x,z:p.z,cur:Music.cur,room:Music.room,dj:Music.dj?Music.dj.id:null})); } }catch(e){} }
+function saveAll(){ try{ save(); if(MODE==='floor'&&PLAYER.obj){ const p=PLAYER.obj.position; localStorage.setItem('muzikEvi.place',JSON.stringify({house:CURHOUSE,street:CURFLOOR==null,fi:CURFLOOR,x:p.x,z:p.z,cur:Music.cur,room:Music.room,dj:Music.dj?Music.dj.id:null})); } }catch(e){} }
 addEventListener('pagehide',saveAll); document.addEventListener('visibilitychange',()=>{ if(document.hidden) saveAll(); }); setInterval(saveAll,15000);
-function resume(){ try{ const s=JSON.parse(localStorage.getItem('muzikEvi.place')||'null'); if(!s||s.fi==null) return false;
+function resume(){ try{ const s=JSON.parse(localStorage.getItem('muzikEvi.place')||'null'); if(!s) return false; if(s.house) setHouse(s.house); if(s.street){ goStreet(); PLAYER.obj.position.set(s.x,0,s.z); $('home').classList.remove('show'); return true; } if(s.fi==null) return false;
   enterFloorNow(s.fi); PLAYER.obj.position.set(s.x,0,s.z); if(s.cur!=null){ Music.room=s.room; Music.showTrack(s.cur); Music.status('Kaldığın yerden: ▶ ile devam et'); $('npToggle').textContent='▶'; Music.resumeIdx=s.cur; }
-  if(s.dj){ const n=WORLD.npcs.find(n=>n.id===s.dj); if(n){ Music.dj=n; n.follow=true; } } return true; }catch(e){ return false; } }
+  if(s.dj){ const n=WORLD.npcs.find(n=>n.id===s.dj); if(n){ Music.dj=n; } } return true; }catch(e){ return false; } }
 
 /* ===== PİL VE ISI: görünümü bozmadan gereksiz işi azalt ===== */
 const PERF={cap:Math.min(window.devicePixelRatio||1, /iPhone|iPad|Android/i.test(navigator.userAgent)?1.4:1.75), pr:0, acc:0, n:0, lastActive:0, frame:0};
@@ -1298,6 +1299,181 @@ function freezeStatic(){
   live(PLAYER.obj); if(marker) live(marker);
   scene.updateMatrixWorld(true);
 }
+
+/* ================= MÜZİK SOKAĞI: birden fazla ev, sokak, arabalar + NPC 2.0 ================= */
+/* ---------- yeni odalar (her biri bir tarzın şarkılarını çalar ama kendi konsepti var) ---------- */
+function mkRoom(key, base, o){ ROOMS[key]=Object.assign({}, ROOMS[base], o, {id:key, base}); byGenre[key]=byGenre[base]; NAMES[key]=o.genreName||NAMES[base]; ROOMS[key].genre=NAMES[key]; }
+mkRoom('meyhane','sanat',{room:'Meyhane', wallTex:'brickPosters', wall:'#5a2a1a', props:['kandil','fasilTable','fasilTable','arch'], stand:{name:'Balık-Ekmek Teknesi', sub:'Karaköy usulü', color:'#2a9d8f', items:[['🐟','Balık-ekmek','Soğanlı, limonlu','₺ 160'],['🥤','Şalgam','Acılı','₺ 40'],['🥗','Çoban salata','Bol limonlu','₺ 70'],['🍮','Muhallebi','Tarçınlı','₺ 60']]}});
+mkRoom('rockbar','trrock',{room:'Rock Bar', props:['amp','barCounter','neonSign','ampWall'], stand:{name:'Gece Burgeri', sub:'Konser çıkışı', color:'#ff3b3b', items:[['🍔','Burger','Çift köfte','₺ 220'],['🍟','Patates','Cheddar soslu','₺ 90'],['🥤','Ayran','Buz gibi','₺ 40'],['🌶️','Acı kanat','6 adet','₺ 150']]}});
+mkRoom('karaoke','pop',{room:'Karaoke Salonu', props:['retroTV','discoBall','neonHeart','retroTV'], band:['singer','keys'], stand:{name:'Karaoke Büfesi', sub:'Ses açan içecekler', color:'#ff3d9a', items:[['🍯','Ballı ıhlamur','Ses tellerine','₺ 50'],['🍭','Lolipop','Mikrofon şeklinde','₺ 30'],['🥤','Gazoz','Şişe','₺ 45'],['🍿','Mısır','Karamel','₺ 70']]}});
+mkRoom('techno','elektro',{room:'Techno Kulübü', props:['lasers','speakers','speakers','lasers'], stand:{name:'Gece Yarısı Bar', sub:'Alkolsüz enerji', color:'#00e5ff', items:[['⚡','Enerji içeceği','Soğuk','₺ 70'],['💧','Su','Şart','₺ 20'],['🍹','Neon mocktail','Parlıyor','₺ 140'],['🟢','Glow bileklik','Hediye','₺ 30']]}});
+mkRoom('hiphopclub','rap',{room:'Hip-Hop Kulübü', wallTex:'graffiti', props:['sprayCans','speakers','car','fence'], stand:{name:'Sokak Tantunisi', sub:'Mersin\'den', color:'#ff7b00', items:[['🌯','Tantuni','Bol limon','₺ 150'],['🥛','Ayran','Köpüklü','₺ 40'],['🍋','Limonata','Naneli','₺ 60'],['🧢','Kep','Hatıra','₺ 250']]}});
+mkRoom('teras','trindie',{room:'Gün Batımı Terası', wallTex:'synthSun', wall:'#3d1f4a', props:['palm','stringLights','plants','palm'], seats:'beanbags', stand:{name:'Smoothie Barı', sub:'Gün batımına karşı', color:'#ff9f43', items:[['🥭','Mango smoothie','Taze','₺ 110'],['🍉','Karpuz','Dilim','₺ 50'],['🧋','Soğuk kahve','Buzlu','₺ 100'],['🥥','Hindistan cevizi','Pipetli','₺ 90']]}});
+mkRoom('havuz','yabpop',{room:'Havuz Partisi', floorTex:'discoFloor', wall:'#2ec4b6', wallTex:'stucco', props:['palm','bunting','discoBall','palm'], stand:{name:'Dondurma Arabası', sub:'Havuz başı', color:'#ffd000', items:[['🍦','Külah','Üç top','₺ 70'],['🍧','Kar topu','Çilekli','₺ 50'],['🍹','Mocktail','Şemsiyeli','₺ 120'],['🍉','Karpuz','Buz gibi','₺ 50']]}});
+mkRoom('kampates','folk',{room:'Kamp Ateşi Bahçesi', props:['campfire','pineTrees','firewood','pineTrees'], stand:{name:'Közde Mısır', sub:'Ateş başında', color:'#f7a35c', items:[['🌽','Közde mısır','Tuzlu','₺ 60'],['🍡','Marshmallow','Çubukta','₺ 50'],['☕','Sıcak çikolata','Tarçınlı','₺ 80'],['🌰','Kestane','Sıcak','₺ 90']]}});
+mkRoom('plakci','anadolu',{room:'Plakçı Dükkânı', props:['recordBins','recordBins','vinylShelf','lavaLamp'], stand:{name:'Plakçı Çaycısı', sub:'Kıyıda köşede', color:'#e2711d', items:[['🍵','Çay','İnce belli','₺ 20'],['🥯','Simit','Susamlı','₺ 35'],['🍬','Akide','Kavanozdan','₺ 25'],['💿','Plak temizleyici','Hediye','₺ 120']]}});
+mkRoom('akustik','trindie',{room:'Akustik Kafe', props:['bookshelf','plants','cat','stringLights'], band:['acoustic','singer'], stand:{name:'Demleme Kahve', sub:'Ev yapımı kurabiye', color:'#c05a19', items:[['☕','V60 kahve','Açık kavrum','₺ 100'],['🍪','Kurabiye','Fındıklı','₺ 50'],['🫖','Bitki çayı','Ihlamur','₺ 50'],['🥐','Kruvasan','Tereyağlı','₺ 80']]}});
+mkRoom('dinleme','jazz',{room:'Hi-Fi Dinleme Odası', props:['vinylShelf','grandLamp','bistroTable','curtainSide'], band:['piano','dbass'], stand:{name:'Sessiz Bar', sub:'Fısıltıyla sipariş', color:'#c9a227', items:[['🍵','Matcha','Sakin','₺ 110'],['🍫','Bitter çikolata','%70','₺ 80'],['💧','Maden suyu','Limonlu','₺ 40'],['🍪','Bademli kurabiye','İnce','₺ 60']]}});
+ROOMS.street=Object.assign({},ROOMS.trindie,{id:'street', room:'Müzik Sokağı', genre:'Karışık', acc:'#ffd23f', stand:{name:'Kokoreç Arabası', sub:'Sokağın kalbi', color:'#ff7b00', items:[['🥖','Yarım kokoreç','Kekikli','₺ 170'],['🌰','Kestane','Közde','₺ 90'],['🥤','Ayran','Şişe','₺ 40'],['🌽','Haşlanmış mısır','Tuzlu','₺ 50']]}});
+byGenre.street=T.map((t,i)=>i); NAMES.street='Karışık';
+Object.assign(NPC_ROLES,{
+ meyhane:[['Nevzat','Meyhane müdavimi'],['Şule','Fasıl solisti'],['Cem','Rumeli havası seven'],['Gönül','Emekli öğretmen']],
+ rockbar:[['Barlas','Bas gitarist'],['Elçin','Rock radyocusu'],['Serdar','Barmen, eski davulcu'],['Nil','Konser bileti avcısı']],
+ karaoke:[['Tuna','Mikrofonu bırakmayan'],['Sevgi','Sezen Aksu hayranı'],['Okan','Sahne korkusu olan'],['Ayşe','Karaoke jürisi']],
+ techno:[['Rave','Sabaha kadar dans eden'],['İpek','Görsel sanatçı'],['Kaya','Modüler synth meraklısı'],['Ezgi','Kulüp fotoğrafçısı']],
+ hiphopclub:[['Baran','Breakdancer'],['Sude','Söz yazarı'],['Efe','Beatbox ustası'],['Damla','Sokak modası tasarımcısı']],
+ teras:[['Deniz','Gün batımı fotoğrafçısı'],['Arya','Yoga hocası'],['Umut','Gezgin'],['Lina','Plak koleksiyoncusu']],
+ havuz:[['Kerim','Cankurtaran'],['Melis','Yaz aşığı'],['Tolga','DJ adayı'],['Yaz','Dans hocası']],
+ kampates:[['Dağhan','Kampçı'],['Sena','Gitar çalan'],['Rüzgar','Doğa rehberi'],['Bade','Hikâye anlatıcısı']],
+ plakci:[['Remzi Usta','Plakçı'],['Aslı','Vinil avcısı'],['Halil','Pikap tamircisi'],['Pınar','Yeşilçam tutkunu']],
+ akustik:[['Mavi','Şarkı yazarı'],['Ege','Kafe sahibi'],['Beril','Şair'],['Kuzey','Gitar öğrencisi']],
+ dinleme:[['Ferit Bey','Hi-fi tutkunu'],['Lara','Caz kritikçisi'],['Mete','Ses mühendisi'],['Nehir','Klasik müzik öğrencisi']],
+ street:[['Murat','Sokak müzisyeni'],['Elif','Akşam yürüyüşünde'],['Hakan Abi','Kokoreççi'],['Zeynep','Telefonundan müzik açan'],['Can','Kaykaycı'],['Selin','Bara giden']],
+});
+
+/* ---------- evler ---------- */
+const MAIN_FLOORS=FLOORS.slice();
+const HOUSES=[
+ {id:'muzikevi', name:"Yiğit'in Müzik Evi", color:'#f3c25a', floors:MAIN_FLOORS, x:-24},
+ {id:'barlar', name:'Barlar Hanı', color:'#ff3b3b', x:0, floors:[
+   {id:'b0', n:'0', name:'Zemin · Meyhane & Rock Bar', short:'Meyhane & Rock', color:'#ff3b3b', intro:'kilim', rooms:['meyhane','rockbar','karaoke']},
+   {id:'b1', n:'1', name:'1. Kat · Gece Kulübü', short:'Gece Kulübü', color:'#7a5cff', intro:'neon', rooms:['techno','hiphopclub']}]},
+ {id:'sahil', name:'Sahil Evi', color:'#2ec4b6', x:24, floors:[
+   {id:'s0', n:'0', name:'Sahil Evi', short:'Sahil Evi', color:'#2ec4b6', intro:'city', rooms:['teras','havuz','kampates']}]},
+ {id:'plak', name:'Plak & Kahve Evi', color:'#e2711d', x:48, floors:[
+   {id:'p0', n:'0', name:'Plak & Kahve Evi', short:'Plak & Kahve', color:'#e2711d', intro:'curtain', rooms:['plakci','akustik','dinleme']}]},
+];
+let CURHOUSE='muzikevi';
+function setHouse(id){ const h=HOUSES.find(h=>h.id===id); CURHOUSE=id; FLOORS.length=0; h.floors.forEach(f=>FLOORS.push(f)); }
+function goHouse(id){ setHouse(id); goFloor(0); }
+
+/* ---------- NPC kadrosu: herkes bir yerde yaşar, odalar arasında gezer ---------- */
+const ROSTER=[]; Object.keys(NPC_ROLES).forEach(g=>NPC_ROLES[g].forEach((nr,k)=>ROSTER.push({id:g+'_'+k, home:g, k, nr})));
+let NPCLOC={}, GROUP=[], EVENTS=[];
+try{ const d=JSON.parse(localStorage.getItem('muzikEvi.social')||'{}'); NPCLOC=d.loc||{}; GROUP=d.group||[]; EVENTS=d.events||[]; }catch(e){}
+function saveSocial(){ try{ localStorage.setItem('muzikEvi.social',JSON.stringify({loc:NPCLOC,group:GROUP,events:EVENTS.slice(-30)})); }catch(e){} }
+const locOf=r=>NPCLOC[r.id]||r.home;
+const npcName=id=>{ const r=ROSTER.find(r=>r.id===id); return r?r.nr[0]:'?'; };
+function logEvent(s){ EVENTS.push(s); saveSocial(); }
+function spawnRoomNPCs(g,room){ ROSTER.filter(r=>locOf(r)===g).forEach(r=>spawnNPC(r.home,room,r.nr,r.k)); }
+function allRoomKeys(){ return HOUSES.flatMap(h=>h.floors.flatMap(f=>f.rooms)).concat(['street']); }
+
+/* ---------- NPC 2.0: zevk, ilişki, sevgili, grup ---------- */
+const baseG=g=>(ROOMS[g]&&ROOMS[g].base)||g;
+function prof(n){ if(n._p) return n._p; const s=k=>hash(n.id+k); const likes=[baseG(n.g), G[Math.floor(s('l')*G.length)]]; let dis=G[Math.floor(s('d')*G.length)]; if(likes.includes(dis)) dis=G[(G.indexOf(dis)+7)%G.length]; return n._p={likes, dis, humor:s('h'), romantic:s('r'), touchy:s('t')}; }
+function rel(n){ const f=FRIEND[n.id]||(FRIEND[n.id]={hearts:0,talked:false}); if(f.aff==null){ f.aff=(f.hearts||0)*15; f.rom=0; f.status=''; } return f; }
+const partnerId=()=>Object.keys(FRIEND).find(id=>FRIEND[id].status==='sevgili');
+function relLabel(n){ const f=rel(n); if(f.status==='sevgili') return 'Sevgilin ❤'; if(f.aff<=-25) return 'Sana küs'; const base=f.aff>=70?'Yakın arkadaş':f.aff>=40?'Arkadaş':f.aff>=15?'Tanıdık':'Yabancı'; return base+(GROUP.includes(n.id)?' · grupta':''); }
+function aff(n,d){ const f=rel(n); f.aff=Math.max(-100,Math.min(100,f.aff+d)); f.hearts=Math.max(0,Math.min(5,Math.round(f.aff/20))); $('tHearts').textContent=hearts(n)+'  '+(d>0?'+':'')+d; $('tRole').textContent=n.role+' · '+relLabel(n); save(); }
+function opinion(n){ if(Music.cur==null) return 'none'; const g=G[T[Music.cur][6]], p=prof(n); if(n.fav && firstArtist(Music.cur)===n.fav) return 'love'; if(g===p.dis) return 'hate'; if(p.likes.includes(g)) return 'like'; return 'ok'; }
+const OP={love:['Bu şarkı benim için çok özel!','Favorim çalıyor, bugün şanslı günüm!'], like:['Güzel seçim, sevdim.','Bu tarzı severim.'], ok:['Fena değil.','Dinlenir.'], hate:['Açık konuşayım, bu tarz bana göre değil.','Bu şarkı beni biraz sıkıyor…'], none:['Müzik yok, sessizlik de güzel ama…','Bir şey açsak mı?']};
+const TOPICS=[
+ {q:'Sence müzik insanı değiştirir mi?', a:[['Kesinlikle, beni hep değiştirdi.',6,'nazik'],['Beni sadece acıktırıyor.',0,'espri'],['Bilmem, pek düşünmedim.',-4,'ilgisiz']]},
+ {q:'Bu evde en sevdiğin oda hangisi?', a:[['Seninle olduğum oda.',4,'flört'],['Hepsini ayrı seviyorum.',5,'nazik'],['Hiçbiri, çok gürültülü.',-8,'kaba']]},
+ {q:'Bugün nasıl geçti?', a:[['Güzel, müzikle her şey güzel.',5,'nazik'],['Kokoreç yedim, daha ne olsun.',0,'espri'],['Sana ne?',-12,'kaba']]},
+ {q:'Hayatında unutamadığın bir konser var mı?', a:[['Var, hâlâ tüylerim diken diken.',6,'nazik'],['Bir kere kendi duşumda verdim.',0,'espri'],['Konserler para tuzağı.',-6,'ilgisiz']]},
+ {q:'Bir gün sahneye çıkmak ister misin?', a:[['Seninle düet yaparsak çıkarım.',4,'flört'],['Neden olmasın, cesaret lazım.',5,'nazik'],['Asla, hiç ilgimi çekmez.',-3,'ilgisiz']]},
+ {q:'Sence bu ev neden bu kadar kalabalık?', a:[['Çünkü iyi insanlar burada.',6,'nazik'],['Kokoreççi yüzünden.',0,'espri'],['Bilmiyorum, umurumda değil.',-5,'ilgisiz']]},
+];
+function toneEffect(n,tone,base){ const p=prof(n), f=rel(n); if(tone==='espri') return p.humor>0.5?9:2; if(tone==='flört'){ if(f.status==='sevgili') return 8; return (p.romantic>0.45 && f.aff>=20)?(f.rom=Math.min(100,f.rom+8),5):-3; } return base; }
+const REPLY={nazik:['Çok güzel söyledin.','Seninle konuşmak iyi geliyor.'], espri:['Hahaha! Sen bir tanesin.','Gülmekten karnım ağrıdı.'], flört:['Oo… yanaklarım kızardı.','Bunu duymak hoşuma gitti.'], ilgisiz:['Hmm, peki.','Anladım…'], kaba:['Bunu duymak beni üzdü.','Tamam, kırıldım.']};
+const REPLY_MEH={espri:['Hı, komikti galiba.'], flört:['Ee… biraz erken değil mi?']};
+
+let TALKN=null;
+openTalk=(function(prev){ return function(n){ prev(n); TALKN=n; n.follow=n.follow&&n._keepFollow; const f=rel(n);
+  $('tRole').textContent=n.role+' · '+relLabel(n);
+  const op=opinion(n); const g=f.status==='sevgili'?'Sevgilim! Seni görmek çok güzel. ':f.aff<=-25?'Yine mi sen? ':f.aff>=40?'Selam dostum! ':'Merhaba! ';
+  talkLine(g+rnd(OP[op])); talkMenu(); }; })(openTalk);
+talkMenu=function(){
+  const n=TALK, f=rel(n), p=prof(n), list=[], op=opinion(n), part=partnerId();
+  list.push(['💬 Sohbet edelim', ()=>{ const tp=rnd(TOPICS); talkLine(tp.q); opts(tp.a.map(([t,base,tone])=>[t,()=>{ const d=toneEffect(n,tone,base); aff(n,d); talkLine((d>2?rnd(REPLY[tone]):rnd(REPLY_MEH[tone]||REPLY[tone]))); talkMenu(); }])); }]);
+  if(Music.cur!=null) list.push(['🎵 Çalan şarkıyı nasıl buldun?', ()=>{ talkLine(rnd(OP[op])+(op==='hate'?' Değiştirmemi ister misin?':'')); if(op==='hate') askChange(n); else { if(op==='love'||op==='like') aff(n,2); talkMenu(); } }]);
+  list.push(['🎧 Müzik zevkin ne?', ()=>{ talkLine(`En çok ${NAMES[p.likes[0]]} ve ${NAMES[p.likes[1]]} severim${n.fav?', favorim '+n.fav:''}. ${NAMES[p.dis]} pek bana göre değil.`); aff(n,1); talkMenu(); }]);
+  list.push(['🎶 Bir şarkı aç istersen', ()=>askChange(n,true)]);
+  list.push(['🗞️ Ne var ne yok?', ()=>{ talkLine(newsLine(n)); talkMenu(); }]);
+  list.push(['🍹 Bir şey ısmarlayayım', ()=>openStand(n.room.g==='street'?'street':n.g, n)]);
+  if(f.aff>=40 && !GROUP.includes(n.id)) list.push(['🤝 Arkadaş grubuma katılır mısın?', ()=>{ if(f.aff>=45||Math.random()<0.6){ GROUP.push(n.id); saveSocial(); logEvent(`${n.name}, Yiğit'in arkadaş grubuna katıldı`); talkLine('Tabii ki! Artık ekibiz. Çağırdığında gelirim.'); aff(n,5);} else talkLine('Biraz daha tanışalım, sonra olur.'); talkMenu(); }]);
+  if(GROUP.includes(n.id)) list.push([n.follow?'🚶 Burada kal':'🚶 Benimle gel', ()=>{ n.follow=!n.follow; n._keepFollow=n.follow; talkLine(n.follow?'Hadi, nereye istersen.':'Tamam, ben buralardayım.'); talkMenu(); }]);
+  if(f.aff>=25 && f.status!=='sevgili') list.push(['😊 İltifat et', ()=>{ const d=toneEffect(n,'flört',0); aff(n,d); talkLine(d>0?rnd(REPLY.flört):rnd(REPLY_MEH.flört)); if(d>0&&part&&part!==n.id){ const pn=WORLD.npcs.find(x=>x.id===part); FRIEND[part].aff-=10; logEvent(`Yiğit, ${n.name} ile flörtleşti; ${npcName(part)} bunu duydu`); if(pn) say(pn,'Ben bunu gördüm!',3); } talkMenu(); }]);
+  if(f.rom>=40 && f.aff>=60 && f.status!=='sevgili') list.push(['💌 Benimle çıkar mısın?', ()=>{ if(f.rom+f.aff>=120 && !part){ f.status='sevgili'; logEvent(`Yiğit ile ${n.name} artık sevgili!`); talkLine('Evet! Uzun zamandır bunu bekliyordum ❤'); aff(n,10); } else if(part){ talkLine('Senin zaten biri var, duydum…'); aff(n,-8); } else { talkLine('Seni çok seviyorum ama şimdilik arkadaş kalalım.'); f.rom=Math.max(0,f.rom-15); aff(n,-2); } talkMenu(); }]);
+  if(f.status==='sevgili'){ list.push(['❤ Seni özledim', ()=>{ aff(n,4); talkLine(rnd(['Ben de seni! Bu şarkıyı birlikte dinleyelim.','Her odada seni arıyorum.'])); talkMenu(); }]); list.push(['💔 Ayrılalım', ()=>{ f.status=''; f.rom=10; aff(n,-30); logEvent(`Yiğit ile ${n.name} ayrıldı`); talkLine('Bunu beklemiyordum… peki.'); talkMenu(); }]); }
+  if(f.aff<=-25) list.push(['🙏 Özür dilerim', ()=>{ aff(n,12); talkLine('Tamam… bu seferlik.'); talkMenu(); }]);
+  list.push(['💃 Dans edelim', ()=>{ closeSheets(); danceTogether(n); }]);
+  list.push(['🪑 Oturup dinleyelim', ()=>{ closeSheets(); sitTogether(n); }]);
+  list.push(['👋 Görüşürüz', ()=>{ talkLine(rnd(LINES.bye)); setTimeout(closeSheets,700); }]);
+  opts(list);
+};
+function askChange(n,offer){ const p=prof(n); let ids=byGenre[p.likes[0]]; if(n.fav&&Math.random()<0.6){ const f=ids.filter(i=>firstArtist(i)===n.fav); if(f.length) ids=f; } const i=rnd(ids);
+  talkLine((offer?'Şunu açayım mı? ':'İzin verirsen şunu açayım: ')+`"${T[i][1]}" — ${firstArtist(i)}`);
+  opts([['✅ Aç, olur', ()=>{ MusicAPI.call('POST','/player/play',{index:i, room:n.room.g}); aff(n,offer?3:6); talkLine('Teşekkürler! İşte bu ♪'); logEvent(`${n.name}, ${ROOMS[n.room.g].room}'da "${T[i][1]}" açtı`); talkMenu(); }, true],
+        ['✋ Şimdi değil', ()=>{ aff(n,offer?0:-3); talkLine('Peki, sen bilirsin.'); talkMenu(); }]]); }
+function newsLine(n){ const ev=EVENTS.slice(-8).filter(e=>!e.includes(n.name)); if(ev.length&&Math.random()<0.7) return 'Duydun mu? '+rnd(ev)+'.';
+  const o=rnd(ROSTER.filter(r=>r.id!==n.id)); const where=ROOMS[locOf(o)]; return `${o.nr[0]} şu an ${where?where.room:'sokakta'} tarafında takılıyor.`; }
+danceTogether=function(n){ const R=n.room; n.state='toStage'; n.target={x:R.cx+1, z:-ZD/2+5}; n.timer=40; walkPlayerTo(R.cx,-ZD/2+5,()=>{ PLAYER.dance=true; }); aff(n,3); };
+sitTogether=function(n){ sitPlayerNearest(n.room); setTimeout(()=>sitNPCNear(n),300); aff(n,2); };
+
+/* ---------- NPC'ler izin isteyerek şarkı değiştirmek ister ---------- */
+let reqT=40;
+function npcRequests(dt){ reqT-=dt; if(reqT>0||!WORLD||anySheet()) return; reqT=50+Math.random()*40; const pp=PLAYER.obj.position;
+  const c=WORLD.npcs.filter(n=>!n.band && n.state!=='talk' && rel(n).aff>=10 && Math.hypot(n.person.position.x-pp.x,n.person.position.z-pp.z)<9 && (opinion(n)==='hate'||Math.random()<0.25));
+  if(!c.length) return; const n=rnd(c); approachNPC(n,()=>{ openTalk(n); askChange(n,false); }); }
+function approachNPC(n,cb){ n.state='walk'; n.target={x:PLAYER.obj.position.x+1, z:PLAYER.obj.position.z+0.6}; n.timer=8; say(n,'Pardon, bir şey sorabilir miyim?',3); setTimeout(()=>{ if(!anySheet()) cb(); },2500); }
+
+/* ---------- odalar arası geçiş ve herkesin haberi ---------- */
+let moveT=20;
+function npcTravel(dt){ moveT-=dt; if(moveT>0||!WORLD) return; moveT=25+Math.random()*20;
+  const here=WORLD.rooms; const c=WORLD.npcs.filter(n=>!n.band&&!n.follow&&n.state!=='talk'&&!n.path);
+  if(here.length>1 && c.length){ const n=rnd(c); const to=rnd(here.filter(r=>r!==n.room)); const from=n.room; const path=[];
+    const a=Math.min(from.i,to.i), b=Math.max(from.i,to.i); const doors=[]; for(let k=a+1;k<=b;k++) doors.push(here[k].x0-1); if(to.i<from.i) doors.reverse();
+    doors.forEach(x=>{ path.push({x:x+(to.i>from.i?-1:1),z:0.4}); path.push({x:x+(to.i>from.i?1:-1),z:0.4}); }); path.push({x:to.x0+4+Math.random()*8, z:1+Math.random()*4});
+    releaseSeat(n); n.path=path; n.room=to; NPCLOC[n.id]=to.g; n.state='walk'; n.target=n.path.shift(); n.timer=60; saveSocial(); }
+  // başka katlardaki/evlerdeki NPC'ler de yer değiştirir
+  const keys=allRoomKeys(); const r=rnd(ROSTER); if(!WORLD.npcs.find(x=>x.id===r.id)){ NPCLOC[r.id]=Math.random()<0.6?r.home:rnd(keys); saveSocial(); }
+}
+npcUpdate=(function(prev){ return function(n,dt,t){ prev(n,dt,t); if(n.path && n.state==='idle'){ if(n.path.length){ n.state='walk'; n.target=n.path.shift(); } else n.path=null; } }; })(npcUpdate);
+/* grubu çağır: grup üyeleri bulundukları yerden yanına gelir */
+function callGroup(){ if(!GROUP.length){ toast('Henüz arkadaş grubun yok. Arkadaş olduğun NPC\'leri gruba davet et.'); return; }
+  const r=currentRoom(); const g=r?r.g:(CURFLOOR==null?'street':null); if(!g){ toast('Bir odaya ya da sokağa geç'); return; }
+  let n=0; GROUP.forEach(id=>{ NPCLOC[id]=g; const ex=WORLD.npcs.find(x=>x.id===id); const ro=ROSTER.find(x=>x.id===id);
+    if(ex){ ex.room=r||ex.room; ex.state='walk'; ex.target={x:PLAYER.obj.position.x+1.5+n, z:PLAYER.obj.position.z+1}; ex.timer=12; }
+    else if(ro){ const s=spawnNPC(ro.home, r||STREET_ROOM, ro.nr, ro.k); s.person.position.set((r?r.x0:PLAYER.obj.position.x-6)+1, 0, 0.4); s.state='walk'; s.target={x:PLAYER.obj.position.x+1.5+n, z:PLAYER.obj.position.z+1}; s.timer=12; s.person.traverse(o=>o.matrixAutoUpdate=true); }
+    n++; }); saveSocial(); toast('Arkadaş grubun geliyor: '+GROUP.map(npcName).join(', ')); }
+
+/* ---------- SOKAK ---------- */
+let STREET_ROOM=null;
+function buildStreet(){
+  disposeScene(); HOME=null; const W={fi:null, rooms:[], colliders:[], inter:[], npcs:[], bands:[], screens:[], cones:[], floats:[], minX:-40, maxX:64, minZ:-4.5, maxZ:11.5}; WORLD=W;
+  scene.background=new THREE.Color('#141a33'); scene.fog=new THREE.Fog('#141a33',30,90); baseLights('#b8c4ff','#2a2018',1.0);
+  box(160,0.1,40,'#3a3f4a',12,-0.06,4,scene); // kaldırım
+  const road=new THREE.Mesh(geo('plane',160,6),surfaceMat('asphalt','#2b2d33','#e9c46a',12,1)); road.rotation.x=-Math.PI/2; road.position.set(12,0.01,7); scene.add(road);
+  for(let i=0;i<40;i++) sph(0.1,'#ffffff',-60+i*4,30+Math.random()*10,-40,scene,4,{basic:true});
+  HOUSES.forEach(h=>{ const g=group(h.x,0,-9,scene); const hgt=4+h.floors.length*3.2;
+    box(18,hgt,6,shade(h.color,-0.35),0,hgt/2,0,g); box(18.4,0.4,6.4,shade(h.color,-0.5),0,hgt,0,g);
+    for(let f=0;f<h.floors.length;f++) for(let k=0;k<4;k++) box(2.2,1.6,0.1,'#ffe9a8',-6+k*4,3+f*3.2,3.05,g,{emissive:h.color,ei:.35});
+    box(3,3,0.15,'#1a1a1a',0,1.5,3.05,g); const t=signTex(h.name,h.floors.map(f=>f.short).join(' · '),'#111',h.color,640,170);
+    mesh(geo('plane',8,2.1),new THREE.MeshBasicMaterial({map:t}),0,hgt-1.4,3.12,g);
+    box(9,0.15,2.4,h.color,0,3.4,4.2,g); // tente
+    W.colliders.push([h.x-9.2,h.x+9.2,-13,-5.6]);
+    W.inter.push({type:'door', x:h.x, z:-4.2, r:2.2, label:'Gir: '+h.name, house:h.id});
+    for(const dx of [-6,6]){ cyl(0.6,0.6,0.05,'#ddd',h.x+dx,0.75,-3.2,scene,10); cyl(0.05,0.05,0.75,'#888',h.x+dx,0.37,-3.2,scene,5); cyl(0.04,0.04,2.4,'#888',h.x+dx,1.9,-3.2,scene,5); mesh(geo('cone',1.3,0.6,8),mat(h.color),h.x+dx,3.2,-3.2,scene); W.colliders.push([h.x+dx-0.6,h.x+dx+0.6,-3.8,-2.6]); }
+  });
+  for(let x=-36;x<=60;x+=12){ cyl(0.08,0.1,4.2,'#333',x,2.1,3.6,scene,6); sph(0.35,'#ffe9a8',x,4.3,3.6,scene,8,{basic:true}); cyl(0.2,0.3,1.4,'#5a3a1e',x+6,0.7,11.2,scene,6); mesh(geo('cone',1.2,2.8,7),mat('#1f6f3a'),x+6,2.6,11.2,scene); }
+  // banklar
+  const seats=[]; [-12,12,36].forEach(x=>{ box(2.4,0.1,0.6,'#8b5a2b',x,0.5,2.6,scene); box(2.4,0.6,0.1,'#8b5a2b',x,0.85,2.9,scene); seats.push({x:x-0.6,z:2.6,h:0.5,taken:null},{x:x+0.6,z:2.6,h:0.5,taken:null}); W.colliders.push([x-1.3,x+1.3,2.3,3.0]); });
+  STREET_ROOM={g:'street', i:0, x0:-30, cx:12, R:ROOMS.street, seats, cones:[], pulses:[], bandMembers:[], standPos:{x:-32,z:1}};
+  buildStandAt(STREET_ROOM,-33,1);
+  // arabalar: yanına gidip müzik aç
+  W.cars=[]; [['#e63946','rap',-6],['#3a86ff','elektro',18],['#ffd23f','dunya',42],['#2a9d8f','klasikrock',58]].forEach(([c,g,x])=>{ const car=group(x,0,6.2,scene); box(3.4,0.7,1.6,c,0,0.55,0,car); box(1.8,0.6,1.5,c,-0.2,1.15,0,car); box(1.7,0.45,1.52,'#bde0fe',-0.2,1.15,0,car); for(const a of [-1.1,1.1]) for(const b of [-0.8,0.8]){ const w=cyl(0.35,0.35,0.25,'#111',a,0.35,b,car,10); w.rotation.x=Math.PI/2; }
+    const glow=box(3.5,0.08,1.7,ROOMS[g].acc,0,0.12,0,car,{emissive:ROOMS[g].acc,ei:.2}); W.cars.push({x, g, glow, car}); W.colliders.push([x-1.9,x+1.9,5.2,7.2]); W.inter.push({type:'car', x, z:4.6, r:2.2, label:'🚗 Arabadan '+NAMES[g]+' aç', g}); addFloat(glow,'pulse',{room:{g}}); });
+  const mover=group(-50,0,8.6,scene); box(3.2,0.7,1.5,'#8338ec',0,0.55,0,mover); box(1.6,0.55,1.4,'#8338ec',-0.2,1.1,0,mover); addFloat(mover,'drive');
+  ROSTER.filter(r=>locOf(r)==='street').forEach(r=>spawnNPC(r.home,STREET_ROOM,r.nr,r.k));
+  return W;
+}
+function buildStandAt(room,x,z){ const R=room.R; const S=R.stand; const sg=group(x,0,z,scene); box(2.4,1,1,shade(S.color,-0.25),0,0.5,0,sg); for(let k=0;k<4;k++) box(0.6,0.08,1.4,k%2?'#fff':S.color,-0.9+k*0.6,2.4,0,sg); for(const px of [-1.1,1.1]) cyl(0.05,0.05,2.4,'#ddd',px,1.2,-0.5,sg,6);
+  const t=signTex(S.name,S.sub,'#111',S.color,640,170); mesh(geo('plane',2.4,0.64),new THREE.MeshBasicMaterial({map:t}),0,1.9,0.52,sg);
+  WORLD.colliders.push([x-1.3,x+1.3,z-0.6,z+0.6]); WORLD.inter.push({type:'stand', x, z:z+1.6, r:2, label:S.name, room:room.g}); }
+function goStreet(){ closeSheets(); standUp(); TRANS=null; $('fx').style.display='none'; MODE='floor'; CURFLOOR=null; buildStreet(); makePlayer(); PLAYER.obj.position.set(HOUSES.find(h=>h.id===CURHOUSE).x,0,-2.5); PLAYER.obj.rotation.y=0; CAM.yaw=0; freezeStatic(); setPlayUI(true); $('rbar').innerHTML=''; $('home').classList.add('show'); setTimeout(()=>$('home').classList.remove('show'),6000); document.documentElement.style.setProperty('--rc','#ffd23f'); }
+giveItem=(function(prev){ return function(n,it){ prev(n,it); aff(n,8); logEvent('Yiğit, '+n.name+'\'e '+it[1]+' ısmarladı'); }; })(giveItem);
 
 /* ================= NPC'LER ================= */
 const FRIEND = {}; // sohbet ilerlemesi (oturum boyunca)
@@ -1332,7 +1508,7 @@ function fill(str, npc, extra={}){
     album:t?t[7]:'', role:npc.role, item:extra.item||R.stand.items[0][1], st:extra.st||'', sa:extra.sa||''};
   return str.replace(/\{(\w+)\}/g,(m,k)=>map[k]??'');
 }
-function playingHere(npc){ return Music.playing && Music.room===npc.g; }
+function playingHere(npc){ return Music.playing && Music.room===(npc.room?npc.room.g:npc.g); }
 
 /* ---- davranış ---- */
 function npcUpdate(npc, dt, t){
@@ -1550,6 +1726,8 @@ function findNear(){
 function doAct(){ if(NEAR) interact(NEAR); }
 $('act').onclick=doAct;
 function interact(it){
+  if(it.type==='door'){ goHouse(it.house); return; }
+  if(it.type==='car'){ byGenre.street=byGenre[it.g]; Music.queue=[]; MusicAPI.call('POST','/player/play',{index:rnd(byGenre[it.g]), room:'street'}); toast('🚗 Arabanın teybi açıldı: '+NAMES[it.g]); return; }
   if(it.type==='npc') openTalk(it.npc);
   else if(it.type==='device') openMusic(it.room);
   else if(it.type==='stand') openStand(it.room, null);
@@ -1600,11 +1778,12 @@ function openStand(g, giftTo){
 function openFloors(){
   closeSheets();
   $('fList').innerHTML=FLOORS.slice().reverse().map(f=>{ const fi=FLOORS.indexOf(f); return `<button class="fl" type="button" data-fi="${fi}"><span class="num" style="background:${f.color}">${f.n}</span><span><b>${f.name}${fi===CURFLOOR?' · buradasın':''}</b><small>${f.rooms.map(g=>ROOMS[g].room).join(' · ')} · ${f.rooms.reduce((a,g)=>a+byGenre[g].length,0)} şarkı</small></span></button>`; }).join('');
-  $('fList').querySelectorAll('.fl').forEach(b=>b.onclick=()=>{ closeSheets(); goFloor(+b.dataset.fi); });
+  $('fList').insertAdjacentHTML('afterbegin','<button class="fl" type="button" id="toStreet"><span class="num" style="background:#ffd23f">🚪</span><span><b>Sokağa çık</b><small>Müzik Sokağı · diğer evler, arabalar, banklar</small></span></button>'); $('toStreet').onclick=()=>goStreet();
+  $('fList').querySelectorAll('.fl:not(#toStreet)').forEach(b=>b.onclick=()=>{ closeSheets(); goFloor(+b.dataset.fi); });
   $('floors').classList.add('show');
 }
 $('bLift').onclick=openFloors; $('bActs').onclick=()=>{ closeSheets(); $('acts').classList.add('show'); };
-$('aQuiz').onclick=()=>{ closeSheets(); if(currentRoom()) startQuiz(null); else toast('Önce bir odaya gir'); }; $('aRhythm').onclick=()=>{ closeSheets(); startRhythm(); }; $('aStage').onclick=()=>{ closeSheets(); karaoke(); }; $('aSit').onclick=()=>{ closeSheets(); const r=currentRoom(); if(r) sitPlayerNearest(r); else toast('Önce bir odaya gir'); }; $('aStyle').onclick=openStyle; $('bMusic').onclick=()=>openMusic(); $('bHome').onclick=()=>goHome();
+$('aQuiz').onclick=()=>{ closeSheets(); if(currentRoom()) startQuiz(null); else toast('Önce bir odaya gir'); }; $('aRhythm').onclick=()=>{ closeSheets(); startRhythm(); }; $('aStage').onclick=()=>{ closeSheets(); karaoke(); }; $('aSit').onclick=()=>{ closeSheets(); const r=currentRoom(); if(r) sitPlayerNearest(r); else toast('Önce bir odaya gir'); }; $('aStyle').onclick=openStyle; $('aGroup').onclick=()=>{ closeSheets(); callGroup(); }; $('bMusic').onclick=()=>openMusic(); $('bHome').onclick=()=>goHome();
 $('npToggle').onclick=()=>Music.toggle(); $('npNext').onclick=()=>Music.next(); $('npMore').onclick=()=>{ closeSheets(); $('more').classList.add('show'); };
 $('oFull').onclick=()=>{ closeSheets(); Music.openEmbed(); };
 $('oBeat').onclick=()=>Music.enableBeat(!Music.beatOn);
@@ -1620,7 +1799,7 @@ function goFloor(fi){
   TRANS={t:0, dur:3.3, from:CURFLOOR, to:fi, built:false};
   fx.style.display='block';
 }
-function goHome(){ closeSheets(); standUp(); MODE='home'; CURFLOOR=null; buildHome(); freezeStatic(); $('home').classList.add('show'); setPlayUI(false); $('where').innerHTML='Müzik Evi · dışarıdan'; }
+function goHome(){ return goStreet(); closeSheets(); standUp(); MODE='home'; CURFLOOR=null; buildHome(); freezeStatic(); $('home').classList.add('show'); setPlayUI(false); $('where').innerHTML='Müzik Evi · dışarıdan'; }
 function setPlayUI(on){ $('rbar').style.display=on?'flex':'none'; $('joy').style.display=on?'block':'none'; if(!on) $('act').classList.remove('show'); $('bubbles').style.display=on?'block':'none'; }
 function updateTrans(dt){
   if(!TRANS) return; TRANS.t+=dt; const p=TRANS.t/TRANS.dur;
@@ -1693,7 +1872,7 @@ function frame(now){
   } else if(MODE==='floor' && WORLD){
     updatePlayer(dt);
     WORLD.npcs.forEach(n=>{ npcUpdate(n,dt,GT); if(n.bubbleT>0){ n.bubbleT-=dt; if(n.bubbleT<=0) n.bubble=null; } });
-    ambientChatter(dt); npcDuo(dt); timeOfDay(dt);
+    ambientChatter(dt); npcDuo(dt); timeOfDay(dt); npcRequests(dt); npcTravel(dt);
     const cr=currentRoom();
     WORLD.rooms.forEach(room=>{
       const active=Music.room===room.g && Music.playing; const kick=active?Beat.kick:0; const pal=(Music.room===room.g&&Music.feat)?Music.feat.palette:room.R.light;
@@ -1719,6 +1898,7 @@ function frame(now){
       case 'tv': f.o.material.emissiveIntensity=active?0.3+Math.random()*0.6:0.3; break;
       case 'orbit': f.o.position.x=Math.cos(GT*0.6)*1.2; f.o.position.z=Math.sin(GT*0.6)*1.2; break;
       case 'fan': f.o.rotation.y+=dt*3; break;
+      case 'drive': f.o.position.x+=dt*7; if(f.o.position.x>75) f.o.position.x=-55; break;
       case 'rock': f.o.rotation.x=Math.sin(GT*1.2)*0.12; break;
       case 'cat': f.o.rotation.y=Math.sin(GT*0.4)*0.6; break;
       case 'ring': f.o.scale.setScalar(1+Math.sin(GT*3)*0.06); break;
@@ -1731,7 +1911,7 @@ function frame(now){
     else { PLAYER.obj.visible=true; camera.position.lerp(tmpV.set(tx,ty,tz), Math.min(1,dt*6)); camera.lookAt(pp.x,pp.y+1.2,pp.z); }
     // arayüz
     NEAR=findNear(); const a=$('act'); if(NEAR && !anySheet()){ a.textContent=NEAR.label; a.classList.add('show'); } else a.classList.remove('show');
-    const room=cr; $('where').innerHTML=`<b>${FLOORS[CURFLOOR].short}</b> · ${room?room.R.room:'Lobi'}`;
+    const room=cr; $('where').innerHTML=CURFLOOR==null?'<b>Müzik Sokağı</b>':`<b>${FLOORS[CURFLOOR].short}</b> · ${room?room.R.room:'Lobi'}`;
     if(room && Music.room===room.g && !Music.playing && Music.audio.ended===false){}
     if(room && !anySheet()) document.documentElement.style.setProperty('--rc',room.R.acc);
   }
@@ -1760,9 +1940,11 @@ function updatePlayer(dt){
 
 /* ---------- başlangıç ---------- */
 function initHomeUI(){
-  $('homeFloors').innerHTML=FLOORS.slice().reverse().map(f=>{ const fi=FLOORS.indexOf(f); return `<button class="fb" type="button" style="background:${f.color}" data-fi="${fi}"><b>${f.n} · ${f.short}</b><small>${f.rooms.map(g=>ROOMS[g].room).join(' · ')}</small></button>`; }).join('');
-  $('homeFloors').querySelectorAll('.fb').forEach(b=>b.onclick=()=>goFloor(+b.dataset.fi));
+  $('homeFloors').innerHTML=HOUSES.map(h=>`<button class="fb" type="button" style="background:${h.color}" data-h="${h.id}"><b>${h.name}</b><small>${h.floors.flatMap(f=>f.rooms).map(g=>ROOMS[g].room).slice(0,4).join(' · ')}</small></button>`).join('');
+  $('homeFloors').querySelectorAll('.fb').forEach(b=>b.onclick=()=>goHouse(b.dataset.h));
+  document.querySelector('#home h1').innerHTML='Müzik <span>Sokağı</span>'; document.querySelector('#home p').textContent='4 ev, 22 oda, arabalar ve banklar. Bir eve dokun ya da sokakta yürüyüp kapısından gir.';
 }
+
 load(); coinUI(); fullLabel(); onResize(); initHomeUI(); goHome(); if(resume()) $('home').classList.remove('show'); SP.init();
 $('oSp').onclick=()=>{ if(!SP.on) SP.login(); }; $('oWake').onclick=()=>{ location.href='spotify:'; }; $('oSpOff').onclick=()=>{ SP.on=!SP.on; localStorage.setItem('sp.off',SP.on?'':'1'); $('oSpOff').textContent=SP.on?'Önizlemeyi uygulama içinde çal (30 sn)':'Tam şarkıyı Spotify\'dan çal'; toast(SP.on?'Tam şarkı: Spotify uygulaması':'Uygulama içi önizleme'); }; $('bChill').onclick=()=>setChill(true); $('bFp').onclick=()=>{ CAM.fp=!CAM.fp; CAM.fpPitch=0; if(CAM.fp) CAM.yaw=PLAYER.obj?PLAYER.obj.rotation.y+Math.PI:CAM.yaw; $('bFp').classList.toggle('pri',CAM.fp); toast(CAM.fp?'Birinci şahıs kamera':'Üçüncü şahıs kamera'); }; $('mForgot').onclick=openForgotten;
 setTimeout(()=>{ $('load').remove(); },60);
