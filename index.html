@@ -772,7 +772,7 @@ function buildRoom(g,i,x0,f){
   buildDevice(R.device,dx,dz,R); W.colliders.push([dx-0.6,dx+0.6,dz-0.6,dz+0.6]);
   W.inter.push({type:'device', x:dx+0.9, z:dz+0.6, r:1.9, label:NS?({turntable:'💿 Pikaptan plak seç',boombox:'📻 Radyoyu aç',jukebox:'🎵 Jukebox',gramophone:'💿 Gramofon'}[R.device]||'📻 Radyoyu aç'):'Çaları aç', room:g, ax:dx, az:dz});
   // stand
-  buildStand(g,x0+ZW-2.4,-ZD/2+3.4,R,room);
+  if(!R.nostand) buildStand(g,x0+ZW-2.4,-ZD/2+3.4,R,room);
   // oturma
   if(!NS) buildSeats(R.seats,cx,room); else (R.mid||[]).forEach((p,k,A)=>buildProp(p,cx+(A.length===1?0:-3+k*6/(A.length-1)),1.2,R,room,20+k));
   // dekor
@@ -1017,7 +1017,7 @@ Music.start = function(i, room){
   $('npVin').style.backgroundImage=t[3]?`url(${coverURL(t[3])})`:'none'; $('npBar').style.width='0';
   if(WORLD){ const rm=WORLD.rooms.find(r=>r.g===this.room); if(rm) bandReturn(rm); }
   announce(i);
-  if(SP.on){ $('np').classList.add('show'); this.showTrack(i); SP.play(i); onSongChange(); djTalk(); return; }
+  if(SP.on){ $('np').classList.add('show'); this.showTrack(i); SP.play(i,this.startAt||0).then(()=>onSongChange()); this.startAt=0; djTalk(); return; }
   if(this.fullMode || !t[8]){ this.status(this.fullMode?'Tam şarkı · Spotify oynatıcısı':'Önizleme yok, Spotify oynatıcısı açılıyor'); this.openEmbed(); onSongChange(); return; }
   if(this.beatOn) this.audio.crossOrigin='anonymous'; else this.audio.removeAttribute('crossorigin');
   this.audio.src='https://p.scdn.co/mp3-preview/'+t[8];
@@ -1233,12 +1233,12 @@ SP.init=async function(){
 SP.api=async function(m,p,body){ if(Date.now()>this.exp) await this.tokenReq({grant_type:'refresh_token',refresh_token:this.ref});
   const r=await fetch('https://api.spotify.com/v1'+p,{method:m,headers:{Authorization:'Bearer '+this.tok,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
   if(r.status===204) return null; const t=await r.text(); let j=null; try{ j=JSON.parse(t);}catch(e){} if(!r.ok) throw Object.assign(new Error('api'),{status:r.status,j}); return j; };
-SP.play=async function(i){
+SP.play=async function(i,posMs){
   const uris=[T[i][0]].concat(Music.queue.map(k=>T[k][0])).map(id=>'spotify:track:'+id);
   try{ const d=(await this.api('GET','/me/player/devices')).devices||[]; const dev=d.find(x=>x.is_active)||d.find(x=>x.type==='Smartphone')||d[0];
     if(!dev){ Music.status('Spotify uyuyor. ⋯ menüsünden "Spotify\'ı uyandır"a bas, Spotify açılınca geri dön ve şarkıya tekrar dokun.'); toast('Spotify uygulaması uyuyor, bir kez açıp geri dön'); return; }
     if(!dev.is_active){ await this.api('PUT','/me/player',{device_ids:[dev.id],play:false}).catch(()=>{}); }
-    await this.api('PUT','/me/player/play?device_id='+dev.id,{uris}); this.lastId=T[i][0]; this.pos=0; this.posAt=performance.now(); Music.playing=true; Music.status('Spotify\'da tam şarkı · '+dev.name);
+    await this.api('PUT','/me/player/play?device_id='+dev.id,posMs>3000?{uris,position_ms:Math.round(posMs)}:{uris}); this.lastId=T[i][0]; this.pos=posMs||0; this.posAt=performance.now(); Music.playing=true; Music.status('Spotify\'da tam şarkı · '+dev.name);
   }catch(e){ Music.status(e.status===403?'Spotify Premium gerekiyor':'Spotify\'a ulaşılamadı'); }
 };
 SP.poll=async function(){ try{ const s=await this.api('GET','/me/player'); if(!s||!s.item) return; Music.playing=s.is_playing; this.pos=s.progress_ms; this.posAt=performance.now(); this.dur=s.item.duration_ms;
@@ -2613,8 +2613,8 @@ tvPlay=function(id,title,thumb){ TV.vid=id; TV.title=title||'YouTube'; TV.thumb=
   if(Music.playing){ TV.wasPlaying=true; Music.toggle(); toast('🎵 Müzik video için duraklatıldı'); }
   const B=$('tvBody'); B.innerHTML='<div id="ytP" style="width:100%;height:calc(100% - 44px)"></div><button class="tvi" type="button" id="ytOpen" style="height:44px;justify-content:center;color:#ff4d6d">YouTube uygulamasında aç ↗ (Premium · reklamsız)</button>'; $('ytOpen').onclick=()=>ytApp(id);
   let started=false; const guard=setTimeout(()=>{ if(!started&&TV.vid===id) ytFail(id,'Oynatıcı yanıt vermedi (ağ ya da YouTube engeli).'); },12000);
-  ytApi().then(()=>{ new YT.Player('ytP',{videoId:id,width:'100%',height:'100%',host:'https://www.youtube.com',playerVars:{autoplay:1,playsinline:1,rel:0,modestbranding:1,origin:location.origin},
-      events:{onReady:e=>{ try{ e.target.playVideo(); }catch(x){} }, onStateChange:e=>{ if(e.data===1||e.data===3){ started=true; clearTimeout(guard); } },
+  ytApi().then(()=>{ TV.player=new YT.Player('ytP',{videoId:id,width:'100%',height:'100%',host:'https://www.youtube.com',playerVars:{autoplay:1,playsinline:1,rel:0,modestbranding:1,origin:location.origin},
+      events:{onReady:e=>{ try{ if(TV.seek>2) e.target.seekTo(TV.seek,true); TV.seek=0; e.target.playVideo(); }catch(x){} }, onStateChange:e=>{ if(e.data===1||e.data===3){ started=true; clearTimeout(guard); } },
         onError:e=>{ clearTimeout(guard); const m={2:'Geçersiz video.',5:'Tarayıcı bu videoyu oynatamıyor.',100:'Video bulunamadı ya da gizli.',101:'Video sahibi başka sitelerde oynatılmasına izin vermiyor.',150:'Video sahibi başka sitelerde oynatılmasına izin vermiyor.',152:'YouTube bu siteden oynatmayı engelledi.',153:'YouTube oynatıcı ayarı reddedildi.'}; ytFail(id,(m[e.data]||'Bilinmeyen hata')+' (kod '+e.data+')'); } } });
       setTimeout(()=>{ const f=B.querySelector('iframe'); if(f){ f.setAttribute('referrerpolicy','strict-origin-when-cross-origin'); f.setAttribute('allow','autoplay; encrypted-media; picture-in-picture; fullscreen'); } },50); })
     .catch(()=>{ clearTimeout(guard); ytFail(id,'YouTube oynatıcısı yüklenemedi.'); });
@@ -3188,6 +3188,109 @@ freeReply=function(n,text){ if(!SOC.aiOn){ return localReply(n,text); } const H=
   run(); };
 /* yapay zekâ kapalıyken eski yerel cevaplar */
 function localReply(n,text){ talkLine(rnd(['Hmm, anladım.','Öyle mi? Anlat bakalım.','Haklısın galiba.'])); aff(n,1); }
+
+/* ===== 085: ortak dinleme/izleme düzeltmesi, sade Spotify, evde minibar yok, sokak yemek arabaları, Arena konserleri, ev adresleri telefondan, daha iyi dinleme ===== */
+/* ---------- 1) birlikte dinle / izle ---------- */
+announce=function(){}; // şarkı anonsu sesi kaldırıldı
+MP.leader=null;
+/* Spotify'da başlangıç saniyesini doğru gönder: çalma bitince paylaş (05_music artık onSongChange'i SP.play sonrası çağırıyor) */
+mpShareMusic=function(){ if(!MP.ch||Music.cur==null||MP.applying||MP.leader) return; const t=T[Music.cur]; const pos=SP.on?(SP.pos||0)+(Music.playing?performance.now()-(SP.posAt||performance.now()):0):(Music.audio.currentTime||0)*1000;
+  MP.ch.send({type:'broadcast',event:'music',payload:{id:MP.id,name:MP.name,tr:[t[0],t[1],t[2],t[3]],at:Date.now()-pos}}); };
+/* takipçi: konumdan bağımsız, aynı odadaki herkes aynı şarkıyı aynı saniyeden çalar */
+mpMusic=function(p){ if(!MP.follow) return; let i=T.findIndex(x=>x[0]===p.tr[0]); if(i<0){ T.push([p.tr[0],p.tr[1],p.tr[2],p.tr[3],'',0,0,'','','']); i=T.length-1; }
+  MP.leader=p.id; const off=Math.max(0,Date.now()-p.at); if(Music.cur===i&&Music.playing) return;
+  MP.applying=true; Music.queue=[]; Music.startAt=off; Music.start(i,(currentRoom()&&currentRoom().g)||Music.room||'street'); toast('🎧 '+p.name+' ile birlikte: '+p.tr[1]);
+  if(!SP.on){ const a=Music.audio, go=()=>{ try{ if(a.duration&&off/1000<a.duration) a.currentTime=off/1000; }catch(e){} }; a.addEventListener('loadedmetadata',go,{once:true}); a.play().catch(()=>joinBar('🎧 '+p.name+' şarkı açtı','Dinle',()=>{ go(); a.play(); })); }
+  setTimeout(()=>{ MP.applying=false; },2500); };
+/* lider şarkıyı değiştirince takipçinin kuyruğu boş kalır, sıradakini lider gönderir */
+fillQueue=(function(prev){ return function(){ if(MP.leader&&MP.ch) return; prev(); }; })(fillQueue);
+/* kendi şarkını seçince lider sen olursun */
+pick=(function(prev){ return function(i){ MP.leader=null; prev(i); }; })(pick);
+MPHOOKS.push(ch=>{ ch.on('broadcast',{event:'yt'},({payload:p})=>ytRemote(p)).on('broadcast',{event:'ytclose'},({payload:p})=>{ if(TV.remote===p.id){ TV.remote=null; tvClose(); toast('📺 '+p.name+' videoyu kapattı'); } }); });
+/* YouTube: açan kişi herkese gönderir; alanlara tek dokunuşla açılır (iPhone sesli otomatik oynatmaya izin vermiyor) */
+tvPlay=(function(prev){ return function(id,title,thumb){ prev(id,title,thumb); if(MP.ch&&!TV.fromRemote){ TV.startedAt=Date.now(); MP.ch.send({type:'broadcast',event:'yt',payload:{id:MP.id,name:MP.name,vid:id,title,scr:TV.scrId,at:TV.startedAt}}); } TV.fromRemote=false; }; })(tvPlay);
+tvClose=(function(prev){ return function(){ if(MP.ch&&TV.vid&&!TV.remote) MP.ch.send({type:'broadcast',event:'ytclose',payload:{id:MP.id,name:MP.name}}); prev(); }; })(tvClose);
+function ytRemote(p){ if(!MP.follow) return; joinBar(`📺 ${p.name} YouTube açtı: ${p.title||''}`,'İzle',()=>{ TV.remote=p.id; TV.scrId=p.scr==='cinema'?'cinema':'salon'; TV.seek=Math.max(0,(Date.now()-p.at)/1000); TV.fromRemote=true; if($('tv').style.display==='none'||!$('tv').style.display) openTV(); tvPlay(p.vid,p.title,'https://i.ytimg.com/vi/'+p.vid+'/mqdefault.jpg'); }); }
+function joinBar(text,btn,fn){ let el=$('joinBar'); if(!el){ el=document.createElement('div'); el.id='joinBar'; el.style.cssText='position:fixed;left:10px;right:10px;top:calc(env(safe-area-inset-top) + 120px);z-index:45;display:flex;gap:8px;align-items:center;padding:10px 12px;border-radius:14px;background:#111e;color:#fff;max-width:520px;margin:0 auto;box-shadow:0 8px 30px #0009;font:600 14px system-ui'; document.body.appendChild(el); }
+  el.innerHTML=`<span style="flex:1">${esc(text)}</span><button class="btn pri" type="button" id="jbY">${esc(btn)}</button><button class="btn" type="button" id="jbN" aria-label="Kapat">✕</button>`; el.style.display='flex';
+  $('jbY').onclick=()=>{ el.style.display='none'; fn(); }; $('jbN').onclick=()=>{ el.style.display='none'; }; clearTimeout(joinBar.t); joinBar.t=setTimeout(()=>{ el.style.display='none'; },30000); }
+
+/* ---------- 2) sade müzik menüsü + yeni oyuncu için tek dokunuşla Spotify ---------- */
+(function(){ const st=document.createElement('style'); st.textContent=`#music .hero{display:none} #spStrip{display:flex;align-items:center;gap:10px;margin:0 16px 10px;padding:10px 12px;border-radius:14px;background:#1db95422;font:600 14px system-ui}
+#spStrip.off{background:#ffffff10} #spStrip b{flex:1} #spStrip .btn{white-space:nowrap} #oAnn{display:none!important}`; document.head.appendChild(st);
+  const s=document.createElement('div'); s.id='spStrip'; $('mSearch').parentNode.before(s); })();
+function spStrip(){ const s=$('spStrip'); if(!s) return; const np=$('npPlus'); if(np) np.style.display=Music.cur!=null?'flex':'none'; if(SP.on){ s.className=''; s.innerHTML='<span>🟢</span><b>Spotify bağlı · şarkılar tam çalar</b>'; }
+  else { s.className='off'; s.innerHTML='<span>🎵</span><b>Tam şarkı için Spotify\'ı bağla</b><button class="btn pri" type="button" id="spGoBtn">Bağla</button>'; $('spGoBtn').onclick=()=>SP.login(); } }
+openMusic=(function(prev){ return function(g){ prev(g); $('mTitle').firstChild&&($('mTitle').firstChild.textContent='Müzik '); spStrip(); }; })(openMusic);
+setTimeout(()=>{ if(SP.on||SP.ref||LS('sp.asked')) return; joinBar('🎵 Spotify\'ı bağla: Premium ile şarkılar tam çalar (tek dokunuş)','Bağla',()=>{ LS('sp.asked',1); SP.login(); }); },6000);
+
+/* ---------- 3) evde minibar yok; mekânlara uygun tezgâh; sokakta yemek arabaları ---------- */
+['salon','yatak','benimoda'].forEach(k=>{ if(ROOMS[k]) ROOMS[k].nostand=true; });
+mkRoom=(function(prev){ return function(key,base,o){ prev(key,base,o); if(/^home_/.test(key)) ROOMS[key].nostand=true; }; })(mkRoom);
+const CARTS=[{x:-24,name:'Simitçi',color:'#c68b3f',items:[['🥯','Simit','Susamlı','₺ 25'],['🧀','Kaşar','Dilim','₺ 30'],['🍵','Çay','İnce belli','₺ 20'],['🥛','Ayran','Şişe','₺ 30']]},
+ {x:34,name:'Mısırcı',color:'#f2c94c',items:[['🌽','Haşlama mısır','Tuzlu','₺ 50'],['🌽','Közde mısır','Tereyağlı','₺ 60'],['🌰','Kestane','Közde','₺ 90'],['🥤','Gazoz','Cam şişe','₺ 35']]},
+ {x:92,name:'Dondurmacı',color:'#7ec8e3',items:[['🍦','Maraş dondurma','Sakızlı','₺ 70'],['🍨','Kaymaklı','2 top','₺ 80'],['🍓','Çilekli','2 top','₺ 80'],['💧','Su','Pet','₺ 15']]}];
+buildStreet=(function(prev){ return function(){ const W=prev(); CARTS.forEach((c,k)=>{ const z=10.6, g=group(c.x,0,z,scene); box(2.2,0.9,1.1,c.color,0,0.75,0,g); box(2.3,0.08,1.2,'#fff',0,1.22,0,g);
+    for(const s of [-0.8,0.8]){ const w=cyl(0.3,0.3,0.12,'#222',s,0.3,0.6,g,12); w.rotation.x=Math.PI/2; } cyl(0.04,0.04,1.4,'#888',0,1.9,0,g,6); const um=mesh(geo('cone',1.5,0.6,10),mat(k%2?'#e63946':'#2a9d8f'),0,2.75,0,g);
+    const t=signTex(c.name,'Sokak lezzeti','#111',c.color,512,140); mesh(geo('plane',1.8,0.5),new THREE.MeshBasicMaterial({map:t}),0,0.9,-0.57,g).rotation.y=Math.PI;
+    W.colliders.push([c.x-1.2,c.x+1.2,z-0.6,z+0.6]); ROOMS['cart'+k]=Object.assign({},ROOMS.street,{room:c.name,stand:{name:c.name,sub:'Sokak lezzeti',color:c.color,items:c.items}}); W.inter.push({type:'stand',x:c.x,z:z-1.3,r:1.8,label:'🛒 '+c.name,room:'cart'+k}); }); return W; }; })(buildStreet);
+
+/* ---------- 4) Arena: büyük açık hava konser sahnesi ---------- */
+const ARENA={x:122,z:22,on:null,band:[],lights:[],ctx:null,tex:null};
+buildStreet=(function(prev){ return function(){ const W=prev(); const X=ARENA.x, Z=ARENA.z; ARENA.band=[]; ARENA.lights=[];
+  const fl=new THREE.Mesh(geo('plane',20,20),mat('#2b2b33')); fl.rotation.x=-Math.PI/2; fl.position.set(X,0.025,Z); scene.add(fl);
+  box(14,1.2,5,'#111',X,0.6,Z+7,scene); box(14.2,0.1,5.2,'#ff3d6e',X,1.22,Z+7,scene,{emissive:'#ff3d6e',ei:.5}); box(15,9,0.4,'#0a0a0a',X,5,Z+9.6,scene);
+  for(const s of [-1,1]){ box(0.5,10,0.5,'#333',X+s*7.5,5,Z+8.5,scene); box(1.6,3,1.2,'#111',X+s*6.2,2.7,Z+5.2,scene); }
+  box(15.5,0.5,5.6,'#333',X,10,Z+7,scene);
+  const cv=document.createElement('canvas'); cv.width=1024; cv.height=512; ARENA.ctx=cv.getContext('2d'); ARENA.tex=new THREE.CanvasTexture(cv); const scr=mesh(geo('plane',12,6),new THREE.MeshBasicMaterial({map:ARENA.tex,toneMapped:false}),X,5.8,Z+9.38,scene); scr.rotation.y=Math.PI; arenaDraw();
+  for(let k=0;k<4;k++){ const L=new THREE.Mesh(geo('cone',0.9,8,10,true),new THREE.MeshBasicMaterial({color:['#ff3d6e','#3de0ff','#ffd23f','#b38cff'][k],transparent:true,opacity:0.18,depthWrite:false,side:THREE.DoubleSide})); L.position.set(X-6+k*4,6.5,Z+6); scene.add(L); addFloat(L,'live'); ARENA.lights.push(L); }
+  ['guitar','drums','bass','keys'].forEach((inst,k)=>{ const p=makePerson(npcLook('arena'+k)); const ins=makeInstrument(inst==='keys'?'piano':inst,'#ff3d6e'); const h=group(X-4.5+k*3,1.22,Z+(inst==='drums'?8:6.6),scene); h.rotation.y=Math.PI; h.add(p); h.add(ins.g); if(inst==='keys'){ p.position.set(0.95,0,0.3); } addFloat(h,'live'); h.visible=false; ARENA.band.push({person:p,pose:ins.pose,holder:h}); });
+  for(const s of [-1,1]) for(let k=0;k<3;k++){ box(0.2,1.1,0.2,'#666',X+s*10,0.55,Z-6+k*6,scene); }
+  W.colliders.push([X-7.3,X+7.3,Z+4.4,Z+10]); W.inter.push({type:'arena',x:X,z:Z+2.4,r:3.2,label:'🎤 Arena konseri'});
+  const t=signTex('ARENA','Canlı konserler','#111','#ff3d6e',640,170); const sg=mesh(geo('plane',4,1.07),new THREE.MeshBasicMaterial({map:t}),X-9.5,2.8,Z-9,scene); sg.rotation.y=Math.PI; cyl(0.06,0.06,2.4,'#333',X-11.3,1.2,Z-9,scene,5); cyl(0.06,0.06,2.4,'#333',X-7.7,1.2,Z-9,scene,5);
+  return W; }; })(buildStreet);
+function arenaDraw(){ const x=ARENA.ctx; if(!x) return; const W=1024,H=512; const g=x.createLinearGradient(0,0,W,H); g.addColorStop(0,'#2a0012'); g.addColorStop(1,'#00142a'); x.fillStyle=g; x.fillRect(0,0,W,H);
+  const A=ARENA.on; x.textAlign='center'; x.fillStyle='#fff'; x.font='800 76px sans-serif'; x.fillText(A?A.artist:'ARENA',W/2,H/2-10); x.font='500 34px sans-serif'; x.fillStyle='#ff9ab6'; x.fillText(A?(Music.cur!=null?T[Music.cur][1]:'Canlı'):'Bir konser başlat',W/2,H/2+50); x.textAlign='left'; ARENA.tex.needsUpdate=true; }
+function arenaArtists(){ const c=upcomingConcerts(1)[0]; const top=Object.entries(artistCount).sort((a,b)=>b[1]-a[1]).slice(0,12).map(a=>a[0]); return [c&&c.artist].concat(top).filter((v,i,a)=>v&&a.indexOf(v)===i).slice(0,10); }
+function openArena(){ closeSheets(); $('gTitle').textContent='🎤 Arena'; const c=upcomingConcerts(1)[0]; $('gBody').innerHTML=`<p style="color:var(--muted)">${ARENA.on?'<b>Şu an sahnede: '+esc(ARENA.on.artist)+'</b>':'Bir sanatçı seç; grup sahneye çıksın, sokak toplansın. Bilet 20 🪙.'}${c?'<br>Bu saatin konuğu: '+esc(c.artist):''}</p>`; const o=$('gOpts'); o.innerHTML='';
+  if(ARENA.on){ const b=document.createElement('button'); b.className='opt'; b.type='button'; b.textContent='⏹ Konseri bitir'; b.onclick=()=>{ arenaEnd(); closeSheets(); }; o.appendChild(b); }
+  arenaArtists().forEach(a=>{ const b=document.createElement('button'); b.className='opt'+(c&&a===c.artist?' pri':''); b.type='button'; b.textContent='🎸 '+a+' · '+artistCount[a]+' şarkı'; b.onclick=()=>{ if(!ARENA.on&&!spend(20)) return; arenaStart(a); closeSheets(); }; o.appendChild(b); });
+  $('game').classList.add('show'); }
+function arenaStart(artist){ const ids=T.map((t,i)=>i).filter(i=>firstArtist(i)===artist).sort(()=>Math.random()-.5); if(!ids.length) return; ARENA.on={artist,ids};
+  ARENA.band.forEach(m=>m.holder.visible=true); MP.leader=null; Music.start(ids[0],'street'); Music.queue=ids.slice(1,8); arenaDraw(); toast('🎤 '+artist+' Arena\'da sahnede!'); logEvent(artist+' Arena\'da konser verdi');
+  PLAYER.obj.position.set(ARENA.x,0,ARENA.z+1); CAM.yaw=Math.PI; }
+function arenaEnd(){ ARENA.on=null; ARENA.band.forEach(m=>m.holder.visible=false); arenaDraw(); WORLD&&WORLD.npcs.forEach(n=>{ if(n.act&&n.act.type==='arena'){ n.act=null; n.state='idle'; n.timer=1; } }); }
+fillQueue=(function(prev){ return function(){ if(ARENA.on&&CURFLOOR===null&&!(MP.leader&&MP.ch)){ const ids=ARENA.on.ids; while(Music.queue.length<5) Music.queue.push(rnd(ids)); return; } prev(); }; })(fillQueue);
+interact=(function(prev){ return function(it){ if(it.type==='arena'){ openArena(); return; } prev(it); }; })(interact);
+goHouse=(function(prev){ return function(id){ if(ARENA.on) arenaEnd(); prev(id); }; })(goHouse);
+/* konser animasyonu: grup çalar, ışıklar döner, kalabalık dans eder */
+econTick=(function(prev){ return function(dt){ prev(dt); if(!ARENA.on||CURFLOOR!==null) return; const t=performance.now()/1000;
+  ARENA.band.forEach(m=>animateMusician(m,Music.playing,Beat.phase,t)); ARENA.lights.forEach((L,k)=>{ L.rotation.z=Math.sin(t*1.3+k)*0.5; L.rotation.x=Math.cos(t*0.9+k)*0.3; });
+  if(Math.random()<0.02) arenaDraw(); }; })(econTick);
+npcUpdate=(function(prev){ return function(n,dt,t){ if(ARENA.on&&CURFLOOR===null&&n.room===STREET_ROOM&&!n.follow&&n.state!=='talk'&&(!n.act||n.act.type==='arena')){
+    if(!n.act){ if(WORLD.npcs.filter(m=>m.act&&m.act.type==='arena').length>=14||Math.random()>0.01) return prev(n,dt,t); n.act={type:'arena',x:ARENA.x-7+Math.random()*14,z:ARENA.z-5+Math.random()*8,t:9999}; say(n,rnd(['Konser var! 🎸','Ön sıraya!','Bu şarkıyı bekliyordum!']),3); }
+    const p=n.person; if(!n.act.at){ if(moveToward(n,n.act.x,n.act.z,dt,2.4)){ n.act.at=true; } else { animatePerson(p,'walk',t); return; } }
+    p.rotation.y=0; animatePerson(p,Math.random()<0.5?'dance':'headbang',t); if(Math.random()<0.001) say(n,rnd(['Woooo!','Bir daha!','🔥🔥','Efsane!']),2); return; }
+  prev(n,dt,t); }; })(npcUpdate);
+mapPlaces=(function(prev){ return function(){ return prev().concat([{x:ARENA.x,z:ARENA.z+3,w:18,d:18,c:'#ff3d6e',n:'Arena',sub:ARENA.on?'Şu an: '+ARENA.on.artist:'Canlı konserler',go:()=>{ closeSheets(); if(CURFLOOR!==null) goStreet(); setTimeout(()=>{ PLAYER.obj.position.set(ARENA.x,0,ARENA.z-6); CAM.yaw=Math.PI; },80); },icon:'🎤'}]); }; })(mapPlaces);
+
+/* ---------- 5) ev adresleri haritada yok; telefondan arayıp evine git ---------- */
+mapPlaces=(function(prev){ return function(){ return prev().filter(p=>p.icon!=='🏡'); }; })(mapPlaces);
+openPhone=(function(prev){ return function(app){ prev(app); if(PHAPP==='harita'){ return; } if(PHAPP!=='rehber') return; $('phBody').querySelectorAll('.item').forEach((row,k)=>{ const id=SOC.contacts.filter(id=>rosterNPC(id))[k]; if(!id) return; const w=row.lastElementChild; const b=document.createElement('button'); b.type='button'; b.className='btn'; b.textContent='🏡 Evine'; b.onclick=()=>visitHome(id); w&&w.appendChild(b); }); }; })(openPhone);
+function visitHome(id){ const r=rosterNPC(id), f=FRIEND[id]||{aff:0}; closeSheets(); toast('📞 '+r.nr[0]+' aranıyor…');
+  setTimeout(()=>{ const ok=f.status==='sevgili'||f.aff>=25; if(ok){ toast('📞 '+r.nr[0]+': "Gel tabii, kapı açık!"'); setTimeout(()=>goNpcHome(id),900); } else toast('📞 '+r.nr[0]+': "Şu an evde değilim, başka zaman olur mu?" (biraz daha yakınlaşın)'); },1300); }
+/* sokakta da ev cepheleri isimsiz: sadece kapı; adresi bilmeyen gidemez */
+buildStreet=(function(prev){ return function(){ const W=prev(); W.inter=W.inter.filter(i=>i.type!=='npchome'); return W; }; })(buildStreet);
+
+/* ---------- 6) daha iyi dinleme: şarkı bilgisi, sözler, beğen, sıradaki ---------- */
+(function(){ const st=document.createElement('style'); st.textContent='#npPlus{display:flex;gap:6px;margin:0 16px 10px;flex-wrap:wrap} #npPlus button{flex:1;border:0;border-radius:12px;background:#ffffff14;color:#fff;padding:9px 6px;font:600 13px system-ui}'; document.head.appendChild(st);
+  const d=document.createElement('div'); d.id='npPlus'; d.innerHTML='<button type="button" id="npLike" aria-label="Favorilere ekle">♡</button><button type="button" id="npLyr">📝 Sözler</button><button type="button" id="npRadio">📻 Benzerleri</button><button type="button" id="npQ">⏭ Sıra</button>'; $('spStrip').after(d);
+  $('npLike').onclick=e=>{ e.stopPropagation(); if(Music.cur==null) return; const L=LS('muzikEvi.likes')||[]; const id=T[Music.cur][0]; const on=!L.includes(id); LS('muzikEvi.likes',on?L.concat(id):L.filter(x=>x!==id)); $('npLike').textContent=on?'♥':'♡'; toast(on?'♥ Favorilere eklendi':'Favorilerden çıkarıldı'); };
+  $('npLyr').onclick=e=>{ e.stopPropagation(); if(Music.cur==null) return; const t=T[Music.cur]; lyrics(firstArtist(Music.cur),t[1]); };
+  $('npRadio').onclick=e=>{ e.stopPropagation(); if(Music.cur==null) return; const g=G[T[Music.cur][6]], a=firstArtist(Music.cur); const sim=T.map((t,i)=>i).filter(i=>i!==Music.cur&&(firstArtist(i)===a||G[T[i][6]]===g)).sort(()=>Math.random()-.5).slice(0,8); Music.queue=sim; toast('📻 '+a+' tarzında 8 şarkı sıraya eklendi'); };
+  $('npQ').onclick=e=>{ e.stopPropagation(); closeSheets(); $('gTitle').textContent='⏭ Sıradakiler'; $('gBody').innerHTML=''; const o=$('gOpts'); o.innerHTML=''; (Music.queue.length?Music.queue:[]).slice(0,10).forEach((k,n)=>{ const b=document.createElement('button'); b.className='opt'; b.type='button'; b.textContent=(n+1)+'. '+T[k][1]+' — '+firstArtist(k); b.onclick=()=>{ Music.queue.splice(n,1); closeSheets(); pick(k); }; o.appendChild(b); }); if(!Music.queue.length) o.innerHTML='<p>Sıra boş.</p>'; $('game').classList.add('show'); }; })();
+onSongChange=(function(prev){ return function(){ prev(); try{ const L=LS('muzikEvi.likes')||[]; $('npLike').textContent=Music.cur!=null&&L.includes(T[Music.cur][0])?'♥':'♡'; }catch(e){} }; })(onSongChange);
+function lyrics(artist,title){ window.open('https://genius.com/search?q='+encodeURIComponent(artist+' '+title),'_blank'); } // sözler lisanslı kaynakta açılır
 
 </script>
 <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
